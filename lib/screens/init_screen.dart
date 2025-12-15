@@ -5,13 +5,16 @@ import 'package:shop_app/screens/favorite/favorite_screen.dart';
 import 'package:shop_app/screens/home/home_screen.dart';
 import 'package:shop_app/screens/pacote/pacote_screen.dart';
 import 'package:shop_app/screens/subscricao/subscricao_screen.dart';
+import 'package:shop_app/screens/pdf_viewer/pdf_viewer_test_screen.dart';
 import 'package:shop_app/screens/profile/profile_screen.dart';
 import 'package:shop_app/components/app_bar_header.dart';
 
 const Color inActiveIconColor = Color(0xFFB6B6B6);
 
 class InitScreen extends StatefulWidget {
-  const InitScreen({super.key});
+  final int? initialIndex;
+  final Map<String, dynamic>? initialPacote;
+  const InitScreen({super.key, this.initialIndex, this.initialPacote});
 
   static String routeName = "/";
 
@@ -28,16 +31,21 @@ class _InitScreenState extends State<InitScreen> {
     });
   }
 
-  final pages = [
-    const HomeScreen(),
-    const FavoriteScreen(),
-    const PacoteScreen(),
-    const SubscricaoScreen(),
-    const ProfileScreen()
-  ];
+  List<Widget> get pages => [
+        const HomeScreen(),
+        const FavoriteScreen(),
+        const PacoteScreen(),
+        SubscricaoScreen(initialPacote: widget.initialPacote),
+        const PdfViewerTestScreen(),
+        const ProfileScreen()
+      ];
 
   @override
   Widget build(BuildContext context) {
+    // apply initial index once
+    if (currentSelectedIndex == 0 && widget.initialIndex != null) {
+      currentSelectedIndex = widget.initialIndex!;
+    }
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(80),
@@ -115,6 +123,11 @@ class _InitScreenState extends State<InitScreen> {
             icon: const Icon(Icons.receipt_long, color: inActiveIconColor),
             activeIcon: Icon(Icons.receipt_long, color: kPrimaryColor),
             label: "Subscrição",
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.picture_as_pdf, color: inActiveIconColor),
+            activeIcon: Icon(Icons.picture_as_pdf, color: kPrimaryColor),
+            label: "PDF",
           ),
           BottomNavigationBarItem(
             icon: SvgPicture.asset(

@@ -1,11 +1,9 @@
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
-import 'package:flutter/widgets.dart';
+// Conditional import wrapper for web/non-web implementations of PDF viewer utilities.
+// The real implementations live in separate files so web-only APIs aren't
+// referenced from non-web builds.
 
-Future<bool> existsFile(String filename) async => false;
-Future<String?> saveFileBytes(String filename, List<int> bytes) async => null;
-String? localFilePath(String filename) => null;
-Future<String?> getLocalFilePath(String filename) async => null;
+export 'file_io_web_stub.dart' if (dart.library.html) 'file_io_web_impl.dart';
 
-Widget buildPdfViewer({String? localPath, required String url}) {
-  return SfPdfViewer.network(url);
-}
+// This file intentionally contains no symbols; it only selects the correct
+// implementation at import time. Other code should import this file as:
+// import 'package:shop_app/utils/file_io_web.dart';

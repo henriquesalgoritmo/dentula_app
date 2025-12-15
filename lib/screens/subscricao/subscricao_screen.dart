@@ -13,13 +13,15 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:path/path.dart' as p;
 import 'package:shop_app/utils/file_io_web.dart'
     if (dart.library.io) 'package:shop_app/utils/file_io_io.dart' as file_io;
+import 'package:shop_app/utils/logging.dart' as logging;
 
 import '../../api_config.dart';
 import '../../providers/auth_provider.dart';
 import 'components/subscricao_card.dart';
 
 class SubscricaoScreen extends StatefulWidget {
-  const SubscricaoScreen({super.key});
+  final Map<String, dynamic>? initialPacote;
+  const SubscricaoScreen({super.key, this.initialPacote});
 
   static String routeName = "/subscricao";
 
@@ -29,7 +31,7 @@ class SubscricaoScreen extends StatefulWidget {
 
 class _SubscricaoScreenState extends State<SubscricaoScreen> {
   int page = 1;
-  int perPage = 10;
+  int perPage = 100;
   String search = '';
   bool loading = false;
   List<dynamic> items = [];
@@ -69,6 +71,12 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
     fetchPacotes();
     fetchClientes();
     fetchBancos();
+    // If opened with an initial pacote, open the subscription form after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.initialPacote != null) {
+        openForm(pacote: widget.initialPacote);
+      }
+    });
   }
 
   Future<Map<String, String>> _authHeaders() async {
@@ -91,7 +99,11 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
         if (search.isNotEmpty) 'search': search,
       });
       final headers = await _authHeaders();
+      debugPrint('fetchData: GET $uri');
+      debugPrint('fetchData: headers: $headers');
       final resp = await http.get(uri, headers: headers);
+      debugPrint('fetchData: status=${resp.statusCode}');
+      debugPrint('fetchData: body=${logging.responseBodyPreview(resp)}');
       if (resp.statusCode == 200) {
         final body = jsonDecode(resp.body);
         setState(() {
@@ -99,11 +111,18 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
           total = body['total'] ?? items.length;
         });
       } else {
-        if (mounted)
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Erro ao buscar subscrições')));
+        debugPrint(
+            'fetchData: ERROR status=${resp.statusCode} body=${logging.responseBodyPreview(resp)}');
+        if (mounted) {
+          final msg = _extractErrorMessageFromResponse(
+              resp, 'Erro ao buscar subscrições');
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(msg)));
+        }
       }
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('fetchData: EXCEPTION $e');
+      debugPrint('$st');
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Erro ao carregar dados')));
@@ -115,13 +134,14 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
   Future<void> editItem(Map<String, dynamic> item) async {
     // populate verification form and show detailed view
     setState(() {
-      verificar = true;
       form['id'] = item['id'];
       form['user_id'] = item['user_id'];
       form['pacote_id'] = item['pacote_id'];
       form['comprovante_pagamento_subscricao'] =
           item['comprovante_pagamento_subscricao'] ?? [];
       form['motivoAnulacaoOrRejeicao'] = '';
+      // Print URLs dos comprobativos
+      _printProvavelUrls();
       // also copy services and price for display
       form['servicos'] = item['servicos'] ?? [];
       form['preco'] = item['preco'] ?? item['preco']?.toString() ?? '';
@@ -158,6 +178,30 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
             text: c['numero_transaccao']?.toString() ?? '');
       }
     });
+
+    // Open verifier in a fullscreen dialog on top of the current screen.
+    await showDialog(
+      context: context,
+      builder: (d) => Dialog(
+        insetPadding: EdgeInsets.zero,
+        child: SizedBox(
+          width: MediaQuery.of(context).size.width,
+          height: MediaQuery.of(context).size.height,
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text('Verificar Subscrição #${form['id']}'),
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(d).pop(),
+              ),
+            ),
+            body: _buildVerifier(),
+          ),
+        ),
+      ),
+    );
+    // ensure inline verifier flag is false after dialog closes
+    if (mounted) setState(() => verificar = false);
   }
 
   Future<void> deleteItem(dynamic item) async {
@@ -185,18 +229,52 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
       final base = getApiBaseUrl();
       final uri = Uri.parse('${base}subscricao/${item['id']}');
       final headers = await _authHeaders();
+      debugPrint('deleteItem: DELETE $uri');
+      debugPrint('deleteItem: headers: $headers');
       final resp = await http.delete(uri, headers: headers);
+      debugPrint(
+          'deleteItem: status=${resp.statusCode} body=${logging.responseBodyPreview(resp)}');
       if (resp.statusCode == 200) {
         if (mounted)
           ScaffoldMessenger.of(context)
               .showSnackBar(const SnackBar(content: Text('Excluído')));
         await fetchData();
       } else {
+        debugPrint(
+            'deleteItem: ERROR status=${resp.statusCode} body=${logging.responseBodyPreview(resp)}');
+        // Try to decode a meaningful error message (UTF-8 safe) from the response
+        String msg = 'Erro ao excluir';
+        try {
+          final decoded = utf8.decode(resp.bodyBytes, allowMalformed: true);
+          final parsed = jsonDecode(decoded);
+          if (parsed is Map) {
+            if (parsed['message'] != null) {
+              msg = parsed['message'].toString();
+            } else if (parsed['errors'] != null && parsed['errors'] is Map) {
+              final errors = parsed['errors'] as Map;
+              for (final v in errors.values) {
+                if (v is List && v.isNotEmpty) {
+                  msg = v.first.toString();
+                  break;
+                }
+                if (v is String && v.isNotEmpty) {
+                  msg = v;
+                  break;
+                }
+              }
+            }
+          }
+        } catch (_) {
+          // ignore and fall back to generic message
+        }
+
         if (mounted)
           ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('Erro ao excluir')));
+              .showSnackBar(SnackBar(content: Text(msg)));
       }
     } catch (e) {
+      debugPrint('deleteItem: EXCEPTION $e');
+      debugPrint(StackTrace.current.toString());
       if (mounted)
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Erro ao excluir')));
@@ -210,9 +288,14 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
       final uri = Uri.parse('${base}validacaoSubscricao/${form['id']}');
       final headers = await _authHeaders();
       final body = {...form, 'operacao': operacao};
+      debugPrint('submitValidacao: PUT $uri');
+      debugPrint('submitValidacao: headers: $headers');
+      debugPrint('submitValidacao: body: ${jsonEncode(body)}');
       final resp = await http.put(uri,
           headers: {...headers, 'Content-Type': 'application/json'},
           body: jsonEncode(body));
+      debugPrint(
+          'submitValidacao: status=${resp.statusCode} body=${logging.responseBodyPreview(resp)}');
       if (resp.statusCode == 200) {
         if (mounted)
           ScaffoldMessenger.of(context).showSnackBar(
@@ -220,23 +303,35 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
         setState(() => verificar = false);
         await fetchData();
       } else {
-        if (mounted)
+        debugPrint(
+            'submitValidacao: ERROR status=${resp.statusCode} body=${logging.responseBodyPreview(resp)}');
+        if (mounted) {
+          final msg =
+              _extractErrorMessageFromResponse(resp, 'Erro na operação');
           ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('Erro na operação')));
+              .showSnackBar(SnackBar(content: Text(msg)));
+        }
       }
     } catch (e) {
+      debugPrint('submitValidacao: EXCEPTION $e');
+      debugPrint(StackTrace.current.toString());
       if (mounted)
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Erro na operação')));
     }
   }
 
-  Future<void> openForm() async {
+  Future<void> openForm({Map<String, dynamic>? pacote}) async {
     final formKey = GlobalKey<FormState>();
+    // If opening with an initial pacote but pacotes list is not loaded yet,
+    // load it so the DropdownButtonFormField can show the selected pacote.
+    if (pacote != null && (pacotes.isEmpty)) {
+      await fetchPacotes();
+    }
     final formData = <String, dynamic>{
       'cliente_id': null,
-      'pacote_id': null,
-      'preco': '',
+      'pacote_id': pacote != null ? pacote['id'] : null,
+      'preco': pacote != null ? pacote['preco']?.toString() ?? '' : '',
     };
 
     selectedFiles = [];
@@ -255,23 +350,25 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      DropdownButtonFormField<int>(
+                      /* Cliente selection disabled temporarily.
+                        DropdownButtonFormField<int>(
                         value: formData['cliente_id'] != null
-                            ? int.tryParse(formData['cliente_id'].toString())
-                            : null,
+                          ? int.tryParse(formData['cliente_id'].toString())
+                          : null,
                         items: clientes.map<DropdownMenuItem<int>>((c) {
                           final id = c['id'] is int
-                              ? c['id'] as int
-                              : int.parse(c['id'].toString());
+                            ? c['id'] as int
+                            : int.parse(c['id'].toString());
                           final label = c['name'] ?? c['nome'] ?? id.toString();
                           return DropdownMenuItem(
-                              value: id, child: Text(label));
+                            value: id, child: Text(label));
                         }).toList(),
                         decoration: const InputDecoration(labelText: 'Cliente'),
                         onChanged: (v) =>
-                            setStateDialog(() => formData['cliente_id'] = v),
+                          setStateDialog(() => formData['cliente_id'] = v),
                         validator: (v) => v == null ? 'Obrigatório' : null,
-                      ),
+                        ),
+                        */
                       const SizedBox(height: 8),
                       DropdownButtonFormField<int>(
                         value: formData['pacote_id'] != null
@@ -287,13 +384,30 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                               value: id, child: Text(label));
                         }).toList(),
                         decoration: const InputDecoration(labelText: 'Pacote'),
-                        onChanged: (v) =>
-                            setStateDialog(() => formData['pacote_id'] = v),
+                        onChanged: (v) => setStateDialog(() {
+                          formData['pacote_id'] = v;
+                          // set preco from selected pacote immediately
+                          try {
+                            for (final p in pacotes) {
+                              final pid = p['id'] is int
+                                  ? p['id'] as int
+                                  : int.tryParse(p['id'].toString()) ?? -1;
+                              if (pid == (v ?? -1)) {
+                                formData['preco'] =
+                                    p['preco']?.toString() ?? '';
+                                break;
+                              }
+                            }
+                          } catch (_) {}
+                        }),
                         validator: (v) => v == null ? 'Obrigatório' : null,
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
+                        key: ValueKey(
+                            formData['pacote_id']?.toString() ?? 'preco'),
                         initialValue: formData['preco'],
+                        readOnly: true,
                         decoration: const InputDecoration(labelText: 'Preço'),
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true),
@@ -359,8 +473,18 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
 
                     final request = http.MultipartRequest('POST', uri);
                     request.headers.addAll(headers);
-                    request.fields['user_id'] =
-                        (formData['cliente_id'] ?? '').toString();
+                    // Use logged-in user id for user_id (cliente selection disabled)
+                    try {
+                      final auth =
+                          Provider.of<AuthProvider>(context, listen: false);
+                      final dynamic uid = auth.user != null
+                          ? (auth.user!['id'] ?? auth.user!['user_id'])
+                          : null;
+                      request.fields['user_id'] = (uid ?? '').toString();
+                    } catch (_) {
+                      request.fields['user_id'] =
+                          (formData['cliente_id'] ?? '').toString();
+                    }
                     request.fields['pacote_id'] =
                         (formData['pacote_id'] ?? '').toString();
                     request.fields['preco'] =
@@ -371,11 +495,11 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                         if (kIsWeb) {
                           final bytes = await file.readAsBytes();
                           request.files.add(http.MultipartFile.fromBytes(
-                              'comprovantes[]', bytes,
+                              'files[]', bytes,
                               filename: file.name));
                         } else {
                           request.files.add(await http.MultipartFile.fromPath(
-                              'comprovantes[]', file.path,
+                              'files[]', file.path,
                               filename: file.name));
                         }
                       } catch (_) {}
@@ -383,6 +507,12 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
 
                     final streamed = await request.send();
                     final resp = await http.Response.fromStream(streamed);
+                    debugPrint('openForm: POST ${request.url}');
+                    debugPrint('openForm: fields=${request.fields}');
+                    debugPrint(
+                        'openForm: files=${request.files.map((f) => f.filename).toList()}');
+                    debugPrint(
+                        'openForm: status=${resp.statusCode} body=${logging.responseBodyPreview(resp)}');
                     if (resp.statusCode == 200 || resp.statusCode == 201) {
                       if (mounted)
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -390,10 +520,14 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                       Navigator.of(dialogCtx).pop();
                       await fetchData();
                     } else {
-                      if (mounted)
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('Erro ao criar subscrição')));
+                      debugPrint(
+                          'openForm: ERROR status=${resp.statusCode} body=${logging.responseBodyPreview(resp)}');
+                      if (mounted) {
+                        final msg = _extractErrorMessageFromResponse(
+                            resp, 'Erro ao criar subscrição');
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(SnackBar(content: Text(msg)));
+                      }
                     }
                   } catch (e) {
                     if (mounted)
@@ -424,14 +558,28 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
       final base = getApiBaseUrl();
       final uri = Uri.parse('${base}pacote');
       final headers = await _authHeaders();
+      debugPrint('fetchPacotes: GET $uri');
+      debugPrint('fetchPacotes: headers: $headers');
       final resp = await http.get(uri, headers: headers);
+      debugPrint(
+          'fetchPacotes: status=${resp.statusCode} body=${logging.responseBodyPreview(resp)}');
       if (resp.statusCode == 200) {
         final body = jsonDecode(resp.body);
         setState(() => pacotes = body['data'] ?? (body is List ? body : []));
       } else {
+        debugPrint(
+            'fetchPacotes: ERROR status=${resp.statusCode} body=${logging.responseBodyPreview(resp)}');
+        if (mounted) {
+          final msg = _extractErrorMessageFromResponse(
+              resp, 'Erro ao carregar pacotes');
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(msg)));
+        }
         setState(() => pacotes = []);
       }
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('fetchPacotes: EXCEPTION $e');
+      debugPrint('$st');
       setState(() => pacotes = []);
     }
   }
@@ -443,14 +591,28 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
         'per_page': '100000',
       });
       final headers = await _authHeaders();
+      debugPrint('fetchClientes: GET $uri');
+      debugPrint('fetchClientes: headers: $headers');
       final resp = await http.get(uri, headers: headers);
+      debugPrint(
+          'fetchClientes: status=${resp.statusCode} body=${logging.responseBodyPreview(resp)}');
       if (resp.statusCode == 200) {
         final body = jsonDecode(resp.body);
         setState(() => clientes = body['data'] ?? (body is List ? body : []));
       } else {
+        debugPrint(
+            'fetchClientes: ERROR status=${resp.statusCode} body=${logging.responseBodyPreview(resp)}');
+        if (mounted) {
+          final msg = _extractErrorMessageFromResponse(
+              resp, 'Erro ao carregar clientes');
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(msg)));
+        }
         setState(() => clientes = []);
       }
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('fetchClientes: EXCEPTION $e');
+      debugPrint('$st');
       setState(() => clientes = []);
     }
   }
@@ -463,25 +625,113 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
         'per_page': '100000',
       });
       final headers = await _authHeaders();
+      debugPrint('fetchBancos: GET $uri');
+      debugPrint('fetchBancos: headers: $headers');
       final resp = await http.get(uri, headers: headers);
+      debugPrint(
+          'fetchBancos: status=${resp.statusCode} body=${logging.responseBodyPreview(resp)}');
       if (resp.statusCode == 200) {
         final body = jsonDecode(resp.body);
         setState(() => bancos = body['data'] ?? (body is List ? body : []));
       } else {
+        debugPrint(
+            'fetchBancos: ERROR status=${resp.statusCode} body=${logging.responseBodyPreview(resp)}');
+        if (mounted) {
+          final msg =
+              _extractErrorMessageFromResponse(resp, 'Erro ao carregar bancos');
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(msg)));
+        }
         setState(() => bancos = []);
       }
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('fetchBancos: EXCEPTION $e');
+      debugPrint('$st');
       setState(() => bancos = []);
     }
   }
 
   Widget _buildList() {
     if (loading) return const Center(child: CircularProgressIndicator());
-    if (items.isEmpty) return const Center(child: Text('Sem subscrições'));
+    if (items.isEmpty)
+      return Center(
+          child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Text(
+          'Ainda não fez pagamento de uma subscrição',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+      ));
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 600;
+
+    if (isMobile) {
+      // Use ListView on mobile so each card sizes to its content (automatic height)
+      return RefreshIndicator(
+        onRefresh: fetchData,
+        child: ListView.builder(
+          padding: const EdgeInsets.only(bottom: 88, top: 8),
+          itemCount: items.length,
+          itemBuilder: (c, i) {
+            final it = items[i];
+            final pacote = it['pacote'] ?? {};
+            final statusStr = () {
+              try {
+                final cps = it['comprovante_pagamento_subscricao'];
+                if (cps != null && cps is List && cps.isNotEmpty) {
+                  final sp = cps[0]['status_pagamento'];
+                  if (sp != null && sp is Map && sp['designacao'] != null)
+                    return sp['designacao'].toString();
+                }
+              } catch (_) {}
+              return '-';
+            }();
+
+            return Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              child: InkWell(
+                onTap: () => editItem(it),
+                child: SubscricaoCard(
+                  id: it['id'],
+                  designacao: it['designacao'] ?? '',
+                  cliente: it['user']?['name'] ?? '-',
+                  pacoteInfo:
+                      '${pacote['designacao'] ?? '-'}, Preço: ${it['preco'] ?? '-'} AKZ',
+                  status: statusStr,
+                  onTap: () => editItem(it),
+                  onDelete: () => deleteItem(it),
+                  imageUrl: (it['comprovante_pagamento_subscricao'] is List &&
+                          (it['comprovante_pagamento_subscricao'] as List)
+                              .isNotEmpty)
+                      ? _buildFileUrl(
+                          ((it['comprovante_pagamento_subscricao'] as List)
+                                      .first['path'] ??
+                                  '')
+                              .toString())
+                      : null,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    final crossAxisCount = 2;
+    final childAspectRatio = 3 / 2;
+
     return RefreshIndicator(
       onRefresh: fetchData,
-      child: ListView.builder(
-        padding: const EdgeInsets.only(bottom: 88),
+      child: GridView.builder(
+        padding: const EdgeInsets.only(bottom: 88, top: 8),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: childAspectRatio,
+        ),
         itemCount: items.length,
         itemBuilder: (c, i) {
           final it = items[i];
@@ -498,15 +748,30 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
             return '-';
           }();
 
-          return SubscricaoCard(
-            id: it['id'],
-            designacao: it['designacao'] ?? '',
-            cliente: it['user']?['name'] ?? '-',
-            pacoteInfo:
-                '${pacote['designacao'] ?? '-'}, Preço: ${it['preco'] ?? '-'} AKZ',
-            status: statusStr,
-            onTap: () => editItem(it),
-            onDelete: () => deleteItem(it),
+          return Padding(
+            padding: const EdgeInsets.all(4.0),
+            child: InkWell(
+              onTap: () => editItem(it),
+              child: SubscricaoCard(
+                id: it['id'],
+                designacao: it['designacao'] ?? '',
+                cliente: it['user']?['name'] ?? '-',
+                pacoteInfo:
+                    '${pacote['designacao'] ?? '-'}, Preço: ${it['preco'] ?? '-'} AKZ',
+                status: statusStr,
+                onTap: () => editItem(it),
+                onDelete: () => deleteItem(it),
+                imageUrl: (it['comprovante_pagamento_subscricao'] is List &&
+                        (it['comprovante_pagamento_subscricao'] as List)
+                            .isNotEmpty)
+                    ? _buildFileUrl(
+                        ((it['comprovante_pagamento_subscricao'] as List)
+                                    .first['path'] ??
+                                '')
+                            .toString())
+                    : null,
+              ),
+            ),
           );
         },
       ),
@@ -601,11 +866,13 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                                         SnackBar(
                                             content: Text('Guardado: $saved')));
                                 } else {
-                                  if (mounted)
+                                  if (mounted) {
+                                    final msg =
+                                        _extractErrorMessageFromResponse(
+                                            resp, 'Erro ao descarregar');
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                            content:
-                                                Text('Erro ao descarregar')));
+                                        SnackBar(content: Text(msg)));
+                                  }
                                 }
                               } catch (e) {
                                 if (mounted)
@@ -674,6 +941,55 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
     return u.contains('?') ? '$u&_t=$ts' : '$u?_t=$ts';
   }
 
+  // Extract a useful error message from an HTTP response, decoding UTF-8 safely.
+  String _extractErrorMessageFromResponse(http.Response? resp,
+      [String fallback = 'Erro']) {
+    if (resp == null) return fallback;
+    try {
+      final decoded = utf8.decode(resp.bodyBytes, allowMalformed: true);
+      final parsed = jsonDecode(decoded);
+      if (parsed is Map) {
+        if (parsed['message'] != null) return parsed['message'].toString();
+        if (parsed['errors'] != null) {
+          final errors = parsed['errors'];
+          if (errors is Map) {
+            for (final v in errors.values) {
+              if (v is List && v.isNotEmpty) return v.first.toString();
+              if (v is String && v.isNotEmpty) return v;
+            }
+          } else if (errors is List && errors.isNotEmpty) {
+            return errors.first.toString();
+          }
+        }
+      }
+      if (parsed is String && parsed.isNotEmpty) return parsed;
+      if (decoded.isNotEmpty) return decoded;
+    } catch (_) {
+      // ignore and fall back
+    }
+    try {
+      final fallbackBody = utf8.decode(resp.bodyBytes, allowMalformed: true);
+      if (fallbackBody.isNotEmpty) return fallbackBody;
+    } catch (_) {}
+    return fallback;
+  }
+
+  // response body preview moved to lib/utils/logging.dart
+
+  void _printProvavelUrls() {
+    final comprovantes =
+        (form['comprovante_pagamento_subscricao'] as List<dynamic>?) ?? [];
+    print('=== URLs DOS COMPROBATIVOS ===');
+    print('Total de comprobativos: ${comprovantes.length}');
+    for (int i = 0; i < comprovantes.length; i++) {
+      final c = comprovantes[i] as Map<String, dynamic>;
+      final path = (c['path'] ?? '').toString();
+      final url = _buildFileUrl(path);
+      print('Comprobativo ${i + 1}: $url');
+    }
+    print('==============================');
+  }
+
   Widget _buildVerifier() {
     final comprovantes =
         (form['comprovante_pagamento_subscricao'] as List<dynamic>?) ?? [];
@@ -726,178 +1042,192 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
           );
         }),
         const SizedBox(height: 8),
-        ExpansionPanelList(
-          expansionCallback: (panelIndex, isExpanded) => setState(() {
-            _expanded[panelIndex] = !isExpanded;
-          }),
-          children: comprovantes.asMap().entries.map((entry) {
-            final idx = entry.key;
-            final c = entry.value as Map<String, dynamic>;
-            final path = (c['path'] ?? '').toString();
-            final url = _buildFileUrl(path);
+        StatefulBuilder(builder: (context, setStateDialog) {
+          return ExpansionPanelList(
+            expansionCallback: (panelIndex, isExpanded) => setStateDialog(() {
+              final newVal = !isExpanded;
+              _expanded[panelIndex] = newVal;
+              if (!newVal) {
+                // when panel is collapsed, ensure inline preview is hidden
+                _showPreview[panelIndex] = false;
+              }
+            }),
+            children: comprovantes.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final c = entry.value as Map<String, dynamic>;
+              final path = (c['path'] ?? '').toString();
+              final url = _buildFileUrl(path);
 
-            return ExpansionPanel(
-              canTapOnHeader: true,
-              headerBuilder: (context, isExpanded) {
-                return ListTile(
-                  title: Text('Comprovante ${idx + 1}'),
-                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    IconButton(
-                      icon: const Icon(Icons.remove_red_eye),
-                      onPressed: () => setState(() {
-                        final newVal = !(_showPreview[idx] ?? false);
-                        _showPreview[idx] = newVal;
-                        if (newVal) _expanded[idx] = true;
-                      }),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.open_in_new),
-                      onPressed: () async => await _previewFile(path),
-                    ),
-                  ]),
-                );
-              },
-              body: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Data with date picker
-                    GestureDetector(
-                      onTap: () async {
-                        DateTime? initial;
-                        try {
-                          if (c['data_movimento'] != null &&
-                              c['data_movimento'].toString().isNotEmpty) {
-                            initial =
-                                DateTime.parse(c['data_movimento'].toString());
-                          }
-                        } catch (_) {}
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: initial ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (picked != null)
-                          setState(() => c['data_movimento'] =
-                              picked.toIso8601String().split('T').first);
-                      },
-                      child: AbsorbPointer(
-                        child: TextFormField(
-                          controller: TextEditingController(
-                              text: _formatDisplayDate(
-                                  c['data_movimento']?.toString() ?? '')),
-                          decoration: const InputDecoration(labelText: 'Data'),
+              return ExpansionPanel(
+                canTapOnHeader: true,
+                headerBuilder: (context, isExpanded) {
+                  return ListTile(
+                    title: Text('Comprovante ${idx + 1}'),
+                    onTap: () => setStateDialog(() {
+                      final newVal = !(_expanded[idx] ?? false);
+                      _expanded[idx] = newVal;
+                      if (!newVal) _showPreview[idx] = false;
+                    }),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(
+                        icon: const Icon(Icons.remove_red_eye),
+                        onPressed: () => setStateDialog(() {
+                          final newVal = !(_showPreview[idx] ?? false);
+                          _showPreview[idx] = newVal;
+                          if (newVal) _expanded[idx] = true;
+                        }),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.open_in_new),
+                        onPressed: () async => await _previewFile(path),
+                      ),
+                    ]),
+                  );
+                },
+                body: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Data with date picker
+                      GestureDetector(
+                        onTap: () async {
+                          DateTime? initial;
+                          try {
+                            if (c['data_movimento'] != null &&
+                                c['data_movimento'].toString().isNotEmpty) {
+                              initial = DateTime.parse(
+                                  c['data_movimento'].toString());
+                            }
+                          } catch (_) {}
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: initial ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null)
+                            setStateDialog(() => c['data_movimento'] =
+                                picked.toIso8601String().split('T').first);
+                        },
+                        child: AbsorbPointer(
+                          child: TextFormField(
+                            controller: TextEditingController(
+                                text: _formatDisplayDate(
+                                    c['data_movimento']?.toString() ?? '')),
+                            decoration:
+                                const InputDecoration(labelText: 'Data'),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Valor with numeric formatting/validation
-                    TextFormField(
-                      initialValue: c['valor']?.toString() ?? '',
-                      decoration: const InputDecoration(labelText: 'Valor'),
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[0-9\.,]'))
-                      ],
-                      onChanged: (v) {
-                        final normalized = v.replaceAll(',', '.');
-                        c['valor'] = normalized;
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<int>(
-                      value: c['coordenadas_bancaria_id'] != null
-                          ? int.tryParse(
-                              c['coordenadas_bancaria_id'].toString())
-                          : null,
-                      items: bancos.map<DropdownMenuItem<int>>((b) {
-                        final id = b['id'] is int
-                            ? b['id'] as int
-                            : int.parse(b['id'].toString());
-                        final label = b['nome'] ?? b['name'] ?? id.toString();
-                        return DropdownMenuItem(value: id, child: Text(label));
-                      }).toList(),
-                      decoration: const InputDecoration(labelText: 'Banco'),
-                      onChanged: (v) =>
-                          setState(() => c['coordenadas_bancaria_id'] = v),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      initialValue: c['numero_transaccao']?.toString() ?? '',
-                      decoration:
-                          const InputDecoration(labelText: 'Nº Transação'),
-                      onChanged: (v) => c['numero_transaccao'] = v,
-                    ),
-                    const SizedBox(height: 8),
-                    if (_showPreview[idx] ?? false) ...[
                       const SizedBox(height: 8),
-                      SizedBox(
-                        height: 250,
-                        child: Builder(builder: (context) {
-                          final ext = path.split('.').last.toLowerCase();
-                          if (['jpg', 'jpeg', 'png', 'gif', 'webp']
-                              .contains(ext)) {
-                            return Column(children: [
-                              Expanded(
-                                child: PhotoView(
-                                  imageProvider:
-                                      NetworkImage(_cacheBustedUrl(url)),
-                                  loadingBuilder: (context, event) =>
-                                      const Center(
-                                          child: CircularProgressIndicator()),
+                      // Valor with numeric formatting/validation
+                      TextFormField(
+                        initialValue: c['valor']?.toString() ?? '',
+                        decoration: const InputDecoration(labelText: 'Valor'),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[0-9\.,]'))
+                        ],
+                        onChanged: (v) {
+                          final normalized = v.replaceAll(',', '.');
+                          c['valor'] = normalized;
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<int>(
+                        value: c['coordenadas_bancaria_id'] != null
+                            ? int.tryParse(
+                                c['coordenadas_bancaria_id'].toString())
+                            : null,
+                        items: bancos.map<DropdownMenuItem<int>>((b) {
+                          final id = b['id'] is int
+                              ? b['id'] as int
+                              : int.parse(b['id'].toString());
+                          final label = b['nome'] ?? b['name'] ?? id.toString();
+                          return DropdownMenuItem(
+                              value: id, child: Text(label));
+                        }).toList(),
+                        decoration: const InputDecoration(labelText: 'Banco'),
+                        onChanged: (v) => setStateDialog(
+                            () => c['coordenadas_bancaria_id'] = v),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        initialValue: c['numero_transaccao']?.toString() ?? '',
+                        decoration:
+                            const InputDecoration(labelText: 'Nº Transação'),
+                        onChanged: (v) => c['numero_transaccao'] = v,
+                      ),
+                      const SizedBox(height: 8),
+                      if (_showPreview[idx] ?? false) ...[
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 250,
+                          child: Builder(builder: (context) {
+                            final ext = path.split('.').last.toLowerCase();
+                            if (['jpg', 'jpeg', 'png', 'gif', 'webp']
+                                .contains(ext)) {
+                              return Column(children: [
+                                Expanded(
+                                  child: PhotoView(
+                                    imageProvider:
+                                        NetworkImage(_cacheBustedUrl(url)),
+                                    loadingBuilder: (context, event) =>
+                                        const Center(
+                                            child: CircularProgressIndicator()),
+                                  ),
                                 ),
-                              ),
-                              Slider(
-                                value:
-                                    (_previewZoom[idx] ?? 1.0).clamp(0.5, 3.0),
-                                min: 0.5,
-                                max: 3.0,
-                                onChanged: (v) =>
-                                    setState(() => _previewZoom[idx] = v),
-                              )
-                            ]);
-                          }
-                          if (ext == 'pdf') {
-                            return file_io.buildPdfViewer(
-                                localPath: null, url: _cacheBustedUrl(url));
-                          }
-                          if (['mp4', 'webm', 'ogg'].contains(ext)) {
+                                Slider(
+                                  value: (_previewZoom[idx] ?? 1.0)
+                                      .clamp(0.5, 3.0),
+                                  min: 0.5,
+                                  max: 3.0,
+                                  onChanged: (v) => setStateDialog(
+                                      () => _previewZoom[idx] = v),
+                                )
+                              ]);
+                            }
+                            if (ext == 'pdf') {
+                              return file_io.buildPdfViewer(
+                                  localPath: null, url: _cacheBustedUrl(url));
+                            }
+                            if (['mp4', 'webm', 'ogg'].contains(ext)) {
+                              return Center(
+                                child: ElevatedButton.icon(
+                                  icon: const Icon(Icons.play_circle_fill),
+                                  label: const Text('Reproduzir vídeo'),
+                                  onPressed: () => showDialog(
+                                      context: context,
+                                      builder: (_) => _VideoPreviewDialog(
+                                          url: _cacheBustedUrl(url))),
+                                ),
+                              );
+                            }
                             return Center(
                               child: ElevatedButton.icon(
-                                icon: const Icon(Icons.play_circle_fill),
-                                label: const Text('Reproduzir vídeo'),
-                                onPressed: () => showDialog(
-                                    context: context,
-                                    builder: (_) => _VideoPreviewDialog(
-                                        url: _cacheBustedUrl(url))),
+                                icon: const Icon(Icons.open_in_new),
+                                label: const Text('Abrir arquivo'),
+                                onPressed: () async {
+                                  final uri = Uri.parse(_cacheBustedUrl(url));
+                                  if (await canLaunchUrl(uri))
+                                    await launchUrl(uri,
+                                        mode: LaunchMode.externalApplication);
+                                },
                               ),
                             );
-                          }
-                          return Center(
-                            child: ElevatedButton.icon(
-                              icon: const Icon(Icons.open_in_new),
-                              label: const Text('Abrir arquivo'),
-                              onPressed: () async {
-                                final uri = Uri.parse(_cacheBustedUrl(url));
-                                if (await canLaunchUrl(uri))
-                                  await launchUrl(uri,
-                                      mode: LaunchMode.externalApplication);
-                              },
-                            ),
-                          );
-                        }),
-                      )
-                    ]
-                  ],
+                          }),
+                        )
+                      ]
+                    ],
+                  ),
                 ),
-              ),
-              isExpanded: _expanded[idx] ?? false,
-            );
-          }).toList(),
-        ),
+                isExpanded: _expanded[idx] ?? false,
+              );
+            }).toList(),
+          );
+        }),
         const SizedBox(height: 12),
         TextFormField(
           initialValue: form['motivoAnulacaoOrRejeicao'] ?? '',
@@ -911,41 +1241,41 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
             alignment: WrapAlignment.center,
             spacing: 8,
             runSpacing: 8,
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 80, maxWidth: 200),
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.check),
-                  label: const Text('Aprovar'),
-                  onPressed: () => submitValidacao(1),
-                ),
-              ),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 80, maxWidth: 200),
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.close),
-                  label: const Text('Rejeitar'),
-                  onPressed: () => submitValidacao(2),
-                ),
-              ),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 80, maxWidth: 200),
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.delete),
-                  label: const Text('Anular'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  onPressed: () => submitValidacao(3),
-                ),
-              ),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 80, maxWidth: 200),
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.reply),
-                  label: const Text('Retornar'),
-                  onPressed: () => submitValidacao(4),
-                ),
-              ),
-            ],
+            // children: [
+            //   ConstrainedBox(
+            //     constraints: const BoxConstraints(minWidth: 80, maxWidth: 200),
+            //     child: ElevatedButton.icon(
+            //       icon: const Icon(Icons.check),
+            //       label: const Text('Aprovar'),
+            //       onPressed: () => submitValidacao(1),
+            //     ),
+            //   ),
+            //   ConstrainedBox(
+            //     constraints: const BoxConstraints(minWidth: 80, maxWidth: 200),
+            //     child: ElevatedButton.icon(
+            //       icon: const Icon(Icons.close),
+            //       label: const Text('Rejeitar'),
+            //       onPressed: () => submitValidacao(2),
+            //     ),
+            //   ),
+            //   ConstrainedBox(
+            //     constraints: const BoxConstraints(minWidth: 80, maxWidth: 200),
+            //     child: ElevatedButton.icon(
+            //       icon: const Icon(Icons.delete),
+            //       label: const Text('Anular'),
+            //       style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            //       onPressed: () => submitValidacao(3),
+            //     ),
+            //   ),
+            //   ConstrainedBox(
+            //     constraints: const BoxConstraints(minWidth: 80, maxWidth: 200),
+            //     child: ElevatedButton.icon(
+            //       icon: const Icon(Icons.reply),
+            //       label: const Text('Retornar'),
+            //       onPressed: () => submitValidacao(4),
+            //     ),
+            //   ),
+            // ],
           );
         })
       ]),
@@ -960,22 +1290,24 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
         child: Stack(children: [
           Column(children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Subscrições',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              if (verificar)
+                Row(children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => setState(() => verificar = false),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Verificar Subscrição',
+                      style:
+                          TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                ])
+              else
+                const Text('Subscrições',
+                    style:
+                        TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               const SizedBox.shrink(),
             ]),
             const SizedBox(height: 12),
-            TextField(
-              decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  hintText: 'Pesquisar designação'),
-              onChanged: (v) {
-                search = v;
-                page = 1;
-                fetchData();
-              },
-            ),
-            const SizedBox(height: 8),
             Expanded(child: verificar ? _buildVerifier() : _buildList()),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               TextButton(
@@ -997,15 +1329,16 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                   child: const Text('Próximo')),
             ])
           ]),
-          Positioned(
-            right: 16,
-            bottom: 16,
-            child: FloatingActionButton(
-              onPressed: () => openForm(),
-              backgroundColor: Theme.of(context).primaryColor,
-              child: const Icon(Icons.add),
-            ),
-          )
+          if (!verificar)
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: FloatingActionButton(
+                onPressed: () => openForm(),
+                backgroundColor: Theme.of(context).primaryColor,
+                child: const Icon(Icons.add),
+              ),
+            )
         ]),
       ),
     );

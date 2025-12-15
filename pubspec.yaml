@@ -44,10 +44,11 @@ dependencies:
   photo_view: ^0.15.0
   video_player: ^2.6.0
   url_launcher: ^6.1.10
-  syncfusion_flutter_pdfviewer: ^20.4.48
+  pdfx: ^2.4.2
   path_provider: ^2.0.15
   path: ^1.8.3
   intl: ^0.18.0
+  flutter_html: ^3.0.0
 
 dev_dependencies:
   flutter_test:

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
+import '../account/account_screen.dart';
+import '../account/change_password_screen.dart';
 // AppBar provided by parent (InitScreen)
 import '../sign_in/sign_in_screen.dart';
 import 'components/profile_menu.dart';
@@ -28,6 +30,12 @@ class ProfileScreen extends StatelessWidget {
             final email = user != null && user['email'] != null
                 ? user['email'].toString()
                 : '';
+            final telefone = user != null && user['telefone'] != null
+                ? user['telefone'].toString()
+                : '';
+            final userName = user != null && user['user_name'] != null
+                ? user['user_name'].toString()
+                : '';
 
             return Column(
               children: [
@@ -36,10 +44,25 @@ class ProfileScreen extends StatelessWidget {
                   style: const TextStyle(
                       fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                if (email.isNotEmpty) ...[
+                if (userName.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    userName,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+                if (email.isNotEmpty || telefone.isNotEmpty) ...[
                   const SizedBox(height: 4),
+                ],
+                if (email.isNotEmpty)
                   Text(
                     email,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                if (telefone.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    telefone,
                     style: const TextStyle(color: Colors.grey),
                   ),
                 ]
@@ -50,7 +73,16 @@ class ProfileScreen extends StatelessWidget {
           ProfileMenu(
             text: "My Account",
             icon: "assets/icons/User Icon.svg",
-            press: () => {},
+            press: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AccountScreen()),
+            ),
+          ),
+          ProfileMenu(
+            text: "Alterar Senha",
+            icon: "assets/icons/Lock.svg",
+            press: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+            ),
           ),
           ProfileMenu(
             text: "Notifications",

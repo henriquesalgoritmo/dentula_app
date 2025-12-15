@@ -23,7 +23,6 @@ class _SignUpFormState extends State<SignUpForm> {
   String? email;
   String? password;
   String? conform_password;
-  String? userName;
   String? telefone;
   int? tipoUserId;
   String? codigoAfilhao;
@@ -98,23 +97,20 @@ class _SignUpFormState extends State<SignUpForm> {
           ),
           const SizedBox(height: 16),
 
-          // Email
+          // Email (optional)
           TextFormField(
             keyboardType: TextInputType.emailAddress,
             onSaved: (newValue) => email = newValue,
             onChanged: (value) {
               if (value.isNotEmpty) {
-                removeError(error: kEmailNullError);
-              } else if (emailValidatorRegExp.hasMatch(value)) {
                 removeError(error: kInvalidEmailError);
+                removeError(error: kEmailOrPhoneNullError);
               }
-              return;
             },
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                addError(error: kEmailNullError);
-                return "";
-              } else if (!emailValidatorRegExp.hasMatch(value)) {
+              if (value != null &&
+                  value.isNotEmpty &&
+                  !emailValidatorRegExp.hasMatch(value)) {
                 addError(error: kInvalidEmailError);
                 return "";
               }
@@ -125,6 +121,24 @@ class _SignUpFormState extends State<SignUpForm> {
               hintText: "Enter your email",
               floatingLabelBehavior: FloatingLabelBehavior.always,
               suffixIcon: CustomSurffixIcon(svgIcon: "assets/icons/Mail.svg"),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Telefone (after Email)
+          TextFormField(
+            keyboardType: TextInputType.phone,
+            onSaved: (newValue) => telefone = newValue,
+            onChanged: (value) {
+              if (value.isNotEmpty) {
+                removeError(error: kPhoneNumberNullError);
+                removeError(error: kEmailOrPhoneNullError);
+              }
+            },
+            decoration: const InputDecoration(
+              labelText: "Telefone",
+              hintText: "Enter phone",
+              floatingLabelBehavior: FloatingLabelBehavior.always,
             ),
           ),
           const SizedBox(height: 20),
@@ -192,30 +206,6 @@ class _SignUpFormState extends State<SignUpForm> {
           FormError(errors: errors),
           const SizedBox(height: 16),
 
-          // Username
-          TextFormField(
-            keyboardType: TextInputType.text,
-            onSaved: (newValue) => userName = newValue,
-            decoration: const InputDecoration(
-              labelText: "UserName",
-              hintText: "Enter a username",
-              floatingLabelBehavior: FloatingLabelBehavior.always,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Telefone
-          TextFormField(
-            keyboardType: TextInputType.phone,
-            onSaved: (newValue) => telefone = newValue,
-            decoration: const InputDecoration(
-              labelText: "Telefone",
-              hintText: "Enter phone",
-              floatingLabelBehavior: FloatingLabelBehavior.always,
-            ),
-          ),
-          const SizedBox(height: 12),
-
           // Tipo user select
           DropdownButtonFormField<int>(
             value: tipoUserId,
@@ -262,13 +252,23 @@ class _SignUpFormState extends State<SignUpForm> {
                 ? null
                 : () async {
                     if (!_formKey.currentState!.validate()) return;
+                    _formKey.currentState!.save();
+
+                    // Require at least email or telefone
+                    if ((email == null || email!.isEmpty) &&
+                        (telefone == null || telefone!.isEmpty)) {
+                      addError(error: kEmailOrPhoneNullError);
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Please enter email or phone')));
+                      return;
+                    }
+
                     if (!privacyPolicies) {
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                           content: Text(
                               'Você precisa aceitar a política de privacidade.')));
                       return;
                     }
-                    _formKey.currentState!.save();
                     await _submitRegister();
                   },
             child: isLoading
@@ -296,7 +296,6 @@ class _SignUpFormState extends State<SignUpForm> {
       'email': email ?? '',
       'password': password ?? '',
       'password_confirmation': conform_password ?? '',
-      'user_name': userName ?? '',
       'telefone': telefone ?? '',
       'tipo_user_id': tipoUserId,
       'codigoAfilhao': codigoAfilhao ?? '',

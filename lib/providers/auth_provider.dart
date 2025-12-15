@@ -41,6 +41,20 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateUser(Map<String, dynamic>? user) async {
+    _user = user;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (user != null) await prefs.setString(_userKey, jsonEncode(user));
+    } catch (e) {
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('AuthProvider: could not persist user update: $e');
+      }
+    }
+    notifyListeners();
+  }
+
   Future<void> logout() async {
     _token = null;
     _user = null;

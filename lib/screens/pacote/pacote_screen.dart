@@ -9,6 +9,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../api_config.dart';
 import '../../providers/auth_provider.dart';
 import 'components/pacote_card.dart';
+import '../init_screen.dart';
+import '../subscricao/subscricao_screen.dart';
 
 class PacoteScreen extends StatefulWidget {
   const PacoteScreen({super.key});
@@ -413,22 +415,10 @@ class _PacoteScreenState extends State<PacoteScreen> {
                     const Text('Pacotes',
                         style: TextStyle(
                             fontSize: 22, fontWeight: FontWeight.bold)),
-                    // removed top add button; floating button is provided bottom-left
                     const SizedBox.shrink(),
                   ],
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: 'Pesquisar designação'),
-                  onChanged: (v) {
-                    search = v;
-                    page = 1;
-                    fetchData();
-                  },
-                ),
-                const SizedBox(height: 8),
                 Expanded(
                   child: loading
                       ? const Center(child: CircularProgressIndicator())
@@ -438,14 +428,25 @@ class _PacoteScreenState extends State<PacoteScreen> {
                             itemCount: items.length,
                             itemBuilder: (context, index) {
                               final item = items[index];
+                              final path = (item['path_capa'] ?? '').toString();
+                              final imageUrl = path.isNotEmpty
+                                  ? '${getApiBaseUrl()}storage/$path'
+                                  : null;
                               return PacoteCard(
                                 id: item['id'],
                                 designacao: item['designacao'] ?? '',
                                 preco: item['preco'] ?? 0,
                                 diasDuracao: item['diasDuracao'] ?? 0,
                                 status: item['status']?['designacao'] ?? '-',
-                                onTap: () => openForm(pacote: item),
-                                onDelete: () => deleteItem(item),
+                                imageUrl: imageUrl,
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => InitScreen(
+                                      initialIndex: 3,
+                                      initialPacote: item,
+                                    ),
+                                  ),
+                                ),
                               );
                             },
                           ),
@@ -479,16 +480,7 @@ class _PacoteScreenState extends State<PacoteScreen> {
               ],
             ),
 
-            // Floating add button bottom-right
-            Positioned(
-              right: 16,
-              bottom: 16,
-              child: FloatingActionButton(
-                onPressed: () => openForm(),
-                backgroundColor: Theme.of(context).primaryColor,
-                child: const Icon(Icons.add),
-              ),
-            ),
+            // Floating add button removed per design
           ],
         ),
       ),

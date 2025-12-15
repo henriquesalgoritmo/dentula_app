@@ -6,6 +6,7 @@ class PacoteCard extends StatelessWidget {
   final num preco;
   final int diasDuracao;
   final String status;
+  final String? imageUrl;
   final VoidCallback? onTap;
   final VoidCallback? onDelete;
 
@@ -16,6 +17,7 @@ class PacoteCard extends StatelessWidget {
     required this.preco,
     required this.diasDuracao,
     required this.status,
+    this.imageUrl,
     this.onTap,
     this.onDelete,
   }) : super(key: key);
@@ -35,6 +37,31 @@ class PacoteCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (imageUrl != null && imageUrl!.isNotEmpty) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    height: 140,
+                    width: double.infinity,
+                    child: Image.network(
+                      imageUrl!,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const SizedBox(
+                            height: 140,
+                            child: Center(child: CircularProgressIndicator()));
+                      },
+                      errorBuilder: (context, err, st) => Container(
+                        height: 140,
+                        color: Colors.grey.shade200,
+                        child: const Center(child: Icon(Icons.broken_image)),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -64,17 +91,15 @@ class PacoteCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      side: BorderSide(color: Theme.of(context).primaryColor),
+                    ),
                     onPressed: onTap,
-                    child: Text('Detalhes',
-                        style:
-                            TextStyle(color: Theme.of(context).primaryColor)),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: onDelete,
-                    child: const Text('Excluir',
-                        style: TextStyle(color: Colors.red)),
+                    child: const Text('Detalhes'),
                   ),
                 ],
               )

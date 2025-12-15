@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+
+import '../../providers/auth_provider.dart';
 
 import '../../api_config.dart';
 import '../../helper/keyboard.dart';
@@ -24,6 +27,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
   void dispose() {
     _codeCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _logout() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    await auth.logout();
+    if (mounted) Navigator.pushReplacementNamed(context, '/sign_in');
   }
 
   Future<void> _verify() async {
@@ -100,7 +109,16 @@ class _VerificationScreenState extends State<VerificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Verificar Conta')),
+      appBar: AppBar(
+        title: const Text('Verificar Conta'),
+        actions: [
+          IconButton(
+            tooltip: 'Logout',
+            icon: const Icon(Icons.logout),
+            onPressed: loading ? null : _logout,
+          )
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(

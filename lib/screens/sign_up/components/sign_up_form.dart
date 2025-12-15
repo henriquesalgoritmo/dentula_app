@@ -48,6 +48,7 @@ class _SignUpFormState extends State<SignUpForm> {
       final resp = await http.get(Uri.parse(url));
       if (resp.statusCode == 200) {
         final body = jsonDecode(resp.body);
+        debugPrint('Fddddd : $body');
         if (body is List) {
           tiposUser = List<Map<String, dynamic>>.from(body);
           setState(() {});
@@ -324,6 +325,17 @@ class _SignUpFormState extends State<SignUpForm> {
           await auth.login(
               token: token.toString(),
               user: (user is Map) ? user as Map<String, dynamic> : null);
+          // navigate to verification screen if user not verified
+          final isVerified =
+              (user is Map) && (user['data_verificacao_conta'] != null);
+          if (!isVerified) {
+            Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => VerificationScreen(
+                        identifier: user['email'] ?? user['telefone'] ?? '')));
+            return;
+          }
         }
 
         scaffold.showSnackBar(

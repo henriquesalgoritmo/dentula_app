@@ -8,6 +8,7 @@ import '../../../components/form_error.dart';
 import '../../../constants.dart';
 import '../../../api_config.dart';
 import '../../../providers/auth_provider.dart';
+import '../../verification/verification_screen.dart';
 
 class SignUpForm extends StatefulWidget {
   const SignUpForm({super.key});

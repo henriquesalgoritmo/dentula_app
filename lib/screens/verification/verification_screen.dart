@@ -35,6 +35,28 @@ class _VerificationScreenState extends State<VerificationScreen> {
     if (mounted) Navigator.pushReplacementNamed(context, '/sign_in');
   }
 
+  Future<void> _confirmLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmar saída'),
+        content: const Text('Deseja realmente encerrar a sessão?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Sair'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) await _logout();
+  }
+
   Future<void> _verify() async {
     if (_codeCtrl.text.trim().isEmpty) return;
     setState(() => loading = true);
@@ -115,7 +137,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           IconButton(
             tooltip: 'Logout',
             icon: const Icon(Icons.logout),
-            onPressed: loading ? null : _logout,
+            onPressed: loading ? null : _confirmLogout,
           )
         ],
       ),

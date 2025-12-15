@@ -247,12 +247,18 @@ class _SignFormState extends State<SignForm> {
       // If account not verified, backend returns 403 with needs_verification flag
       if (status == 403) {
         try {
-          final needs = (body is Map && body['needs_verification'] != null) ? body['needs_verification'] : null;
-          final msg = (body is Map && body['message'] != null) ? body['message'].toString() : 'Conta não verificada';
+          final needs = (body is Map && body['needs_verification'] != null)
+              ? body['needs_verification']
+              : null;
+          final msg = (body is Map && body['message'] != null)
+              ? body['message'].toString()
+              : 'Conta não verificada';
           // Navigate to verification screen with provided identifier
           Navigator.of(context).pushReplacement(MaterialPageRoute(
-              builder: (_) => VerificationScreen(identifier: emailOrUsername ?? '')));
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+              builder: (_) =>
+                  VerificationScreen(identifier: emailOrUsername ?? '')));
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(msg)));
           return;
         } catch (e) {
           // ignore

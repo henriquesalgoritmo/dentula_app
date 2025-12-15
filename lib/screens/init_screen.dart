@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
+import 'package:shop_app/providers/auth_provider.dart';
+import 'package:shop_app/screens/verification/verification_screen.dart';
 import 'package:shop_app/constants.dart';
 import 'package:shop_app/screens/favorite/favorite_screen.dart';
 import 'package:shop_app/screens/home/home_screen.dart';
@@ -42,6 +45,25 @@ class _InitScreenState extends State<InitScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Global guard: if logged in but not verified, redirect to verification screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        final auth = Provider.of<AuthProvider>(context, listen: false);
+        final user = auth.user;
+        if (auth.isLoggedIn && user != null) {
+          final verified = user['data_verificacao_conta'];
+          if (verified == null || verified.toString().isEmpty) {
+            // pushVerificationScreen and block navigation
+            Navigator.of(context).pushReplacement(MaterialPageRoute(
+                builder: (_) => VerificationScreen(
+                    identifier:
+                        (user['email'] ?? user['telefone'] ?? '').toString())));
+          }
+        }
+      } catch (e) {
+        // ignore errors here
+      }
+    });
     // apply initial index once
     if (currentSelectedIndex == 0 && widget.initialIndex != null) {
       currentSelectedIndex = widget.initialIndex!;

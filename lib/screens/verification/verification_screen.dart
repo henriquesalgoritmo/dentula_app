@@ -9,7 +9,8 @@ import '../../helper/keyboard.dart';
 class VerificationScreen extends StatefulWidget {
   final String identifier; // email or phone
 
-  const VerificationScreen({Key? key, required this.identifier}) : super(key: key);
+  const VerificationScreen({Key? key, required this.identifier})
+      : super(key: key);
 
   @override
   State<VerificationScreen> createState() => _VerificationScreenState();
@@ -53,9 +54,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
         if (first is List && first.isNotEmpty) msg = first.first.toString();
         if (body['message'] != null) msg = body['message'].toString();
       }
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erro: $e')));
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -70,15 +75,17 @@ class _VerificationScreenState extends State<VerificationScreen> {
           body: jsonEncode({'email_or_telefone': widget.identifier}));
       if (resp.statusCode == 200) {
         if (mounted)
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Código reenviado')));
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Código reenviado')));
         return;
       }
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erro ao reenviar código: ${resp.statusCode}')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Erro ao reenviar código: ${resp.statusCode}')));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erro: $e')));
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -86,7 +93,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   void _changeContact() {
     Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => ChangeContactScreen(initialIdentifier: widget.identifier)));
+        builder: (_) =>
+            ChangeContactScreen(initialIdentifier: widget.identifier)));
   }
 
   @override
@@ -102,15 +110,22 @@ class _VerificationScreenState extends State<VerificationScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: _codeCtrl,
-              decoration: const InputDecoration(labelText: 'Código de verificação'),
+              decoration:
+                  const InputDecoration(labelText: 'Código de verificação'),
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 12),
-            ElevatedButton(onPressed: loading ? null : _verify, child: const Text('Verificar')),
+            ElevatedButton(
+                onPressed: loading ? null : _verify,
+                child: const Text('Verificar')),
             const SizedBox(height: 8),
-            TextButton(onPressed: loading ? null : _resend, child: const Text('Reenviar código')),
+            TextButton(
+                onPressed: loading ? null : _resend,
+                child: const Text('Reenviar código')),
             const SizedBox(height: 8),
-            TextButton(onPressed: _changeContact, child: const Text('Alterar email/telefone')),
+            TextButton(
+                onPressed: _changeContact,
+                child: const Text('Alterar email/telefone')),
           ],
         ),
       ),
@@ -118,11 +133,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 }
 
-
 // Simple ChangeContactScreen used by VerificationScreen (kept here to avoid extra imports)
 class ChangeContactScreen extends StatefulWidget {
   final String initialIdentifier;
-  const ChangeContactScreen({Key? key, required this.initialIdentifier}) : super(key: key);
+  const ChangeContactScreen({Key? key, required this.initialIdentifier})
+      : super(key: key);
 
   @override
   State<ChangeContactScreen> createState() => _ChangeContactScreenState();
@@ -141,7 +156,8 @@ class _ChangeContactScreenState extends State<ChangeContactScreen> {
   }
 
   Future<void> _submit() async {
-    if ((_emailCtrl.text.trim().isEmpty) && (_telefoneCtrl.text.trim().isEmpty)) return;
+    if ((_emailCtrl.text.trim().isEmpty) && (_telefoneCtrl.text.trim().isEmpty))
+      return;
     setState(() => loading = true);
     final uri = Uri.parse('${getApiBaseUrl()}change-contact');
     try {
@@ -149,13 +165,16 @@ class _ChangeContactScreenState extends State<ChangeContactScreen> {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'email_or_telefone': widget.initialIdentifier,
-            'email': _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
-            'telefone': _telefoneCtrl.text.trim().isEmpty ? null : _telefoneCtrl.text.trim(),
+            'email':
+                _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
+            'telefone': _telefoneCtrl.text.trim().isEmpty
+                ? null
+                : _telefoneCtrl.text.trim(),
           }));
       if (resp.statusCode == 200) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Contato atualizado e código reenviado')));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Contato atualizado e código reenviado')));
           Navigator.of(context).pop(); // back to verification screen
         }
         return;
@@ -167,9 +186,13 @@ class _ChangeContactScreenState extends State<ChangeContactScreen> {
         if (first is List && first.isNotEmpty) msg = first.first.toString();
         if (body['message'] != null) msg = body['message'].toString();
       }
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erro: $e')));
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -185,11 +208,17 @@ class _ChangeContactScreenState extends State<ChangeContactScreen> {
           children: [
             Text('Conta identificada por: ${widget.initialIdentifier}'),
             const SizedBox(height: 12),
-            TextField(controller: _emailCtrl, decoration: const InputDecoration(labelText: 'Novo email')),
+            TextField(
+                controller: _emailCtrl,
+                decoration: const InputDecoration(labelText: 'Novo email')),
             const SizedBox(height: 8),
-            TextField(controller: _telefoneCtrl, decoration: const InputDecoration(labelText: 'Novo telefone')),
+            TextField(
+                controller: _telefoneCtrl,
+                decoration: const InputDecoration(labelText: 'Novo telefone')),
             const SizedBox(height: 12),
-            ElevatedButton(onPressed: loading ? null : _submit, child: const Text('Atualizar contato')),
+            ElevatedButton(
+                onPressed: loading ? null : _submit,
+                child: const Text('Atualizar contato')),
           ],
         ),
       ),

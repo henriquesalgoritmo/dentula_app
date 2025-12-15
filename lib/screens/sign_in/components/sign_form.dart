@@ -13,6 +13,7 @@ import '../../../components/form_error.dart';
 import '../../../constants.dart';
 import '../../../helper/keyboard.dart';
 import '../../forgot_password/forgot_password_screen.dart';
+import '../../verification/verification_screen.dart';
 // login_success_screen not used here
 
 class SignForm extends StatefulWidget {
@@ -241,6 +242,21 @@ class _SignFormState extends State<SignForm> {
         // Navigate to root/home
         Navigator.pushReplacementNamed(context, '/');
         return;
+      }
+
+      // If account not verified, backend returns 403 with needs_verification flag
+      if (status == 403) {
+        try {
+          final needs = (body is Map && body['needs_verification'] != null) ? body['needs_verification'] : null;
+          final msg = (body is Map && body['message'] != null) ? body['message'].toString() : 'Conta não verificada';
+          // Navigate to verification screen with provided identifier
+          Navigator.of(context).pushReplacement(MaterialPageRoute(
+              builder: (_) => VerificationScreen(identifier: emailOrUsername ?? '')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+          return;
+        } catch (e) {
+          // ignore
+        }
       }
 
       // Validation errors (Laravel typically returns 422 with field errors)

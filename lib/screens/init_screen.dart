@@ -11,6 +11,7 @@ import 'package:shop_app/screens/subscricao/subscricao_screen.dart';
 import 'package:shop_app/screens/pdf_viewer/pdf_viewer_test_screen.dart';
 import 'package:shop_app/screens/profile/profile_screen.dart';
 import 'package:shop_app/components/app_bar_header.dart';
+import 'package:shop_app/screens/video_feed/video_feed_screen.dart';
 
 const Color inActiveIconColor = Color(0xFFB6B6B6);
 
@@ -40,7 +41,8 @@ class _InitScreenState extends State<InitScreen> {
         const PacoteScreen(),
         SubscricaoScreen(initialPacote: widget.initialPacote),
         const PdfViewerTestScreen(),
-        const ProfileScreen()
+        const ProfileScreen(),
+        const VideoFeedScreen()
       ];
 
   @override
@@ -182,6 +184,11 @@ class _InitScreenState extends State<InitScreen> {
               ),
             ),
             label: "Fav",
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.video_library, color: inActiveIconColor),
+            activeIcon: const Icon(Icons.video_library, color: kPrimaryColor),
+            label: 'Videos',
           ),
         ],
       ),

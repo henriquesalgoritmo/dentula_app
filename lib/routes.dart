@@ -16,6 +16,7 @@ import 'screens/sign_in/sign_in_screen.dart';
 import 'screens/sign_up/sign_up_screen.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/loading/loading_screen.dart';
+import 'screens/video_feed/video_feed_screen.dart';
 
 // We use name route
 // All our routes will be available here
@@ -49,5 +50,10 @@ final Map<String, WidgetBuilder> routes = {
   ProfileScreen.routeName: (context) {
     final auth = Provider.of<AuthProvider>(context);
     return auth.isLoggedIn ? const ProfileScreen() : const SignInScreen();
+  },
+  // Video feed (TikTok-like)
+  VideoFeedScreen.routeName: (context) {
+    final auth = Provider.of<AuthProvider>(context);
+    return auth.isLoggedIn ? const VideoFeedScreen() : const SignInScreen();
   },
 };

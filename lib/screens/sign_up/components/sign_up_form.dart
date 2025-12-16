@@ -330,11 +330,25 @@ class _SignUpFormState extends State<SignUpForm> {
           final isVerified =
               (user is Map) && (user['data_verificacao_conta'] != null);
           if (!isVerified) {
+            // choose best identifier: prefer valid email, then telefone
+            String identifierValue = '';
+            if (user is Map) {
+              final Map<String, dynamic> u = user as Map<String, dynamic>;
+              if (u['email'] != null && u['email'].toString().contains('@')) {
+                identifierValue = u['email'].toString();
+              } else if (u['telefone'] != null &&
+                  u['telefone'].toString().trim().isNotEmpty) {
+                identifierValue = u['telefone'].toString();
+              } else if (u['user_name'] != null &&
+                  u['user_name'].toString().trim().isNotEmpty) {
+                identifierValue = u['user_name'].toString();
+              }
+            }
             Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => VerificationScreen(
-                        identifier: user['email'] ?? user['telefone'] ?? '')));
+                    builder: (_) =>
+                        VerificationScreen(identifier: identifierValue)));
             return;
           }
         }

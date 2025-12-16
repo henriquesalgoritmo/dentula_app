@@ -53,11 +53,26 @@ class _InitScreenState extends State<InitScreen> {
         if (auth.isLoggedIn && user != null) {
           final verified = user['data_verificacao_conta'];
           if (verified == null || verified.toString().isEmpty) {
-            // pushVerificationScreen and block navigation
-            Navigator.of(context).pushReplacement(MaterialPageRoute(
-                builder: (_) => VerificationScreen(
-                    identifier:
-                        (user['email'] ?? user['telefone'] ?? '').toString())));
+            // compute identifier: prefer valid email, else telefone
+            String identifierValue = '';
+            try {
+              if (user['email'] != null &&
+                  user['email'].toString().contains('@') &&
+                  emailValidatorRegExp.hasMatch(user['email'].toString())) {
+                identifierValue = user['email'].toString();
+              } else if (user['telefone'] != null &&
+                  user['telefone'].toString().trim().isNotEmpty) {
+                identifierValue = user['telefone'].toString();
+              }
+            } catch (e) {
+              // ignore
+            }
+
+            if (identifierValue.isNotEmpty) {
+              Navigator.of(context).pushReplacement(MaterialPageRoute(
+                  builder: (_) =>
+                      VerificationScreen(identifier: identifierValue)));
+            }
           }
         }
       } catch (e) {

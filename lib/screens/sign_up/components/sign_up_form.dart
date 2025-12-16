@@ -339,9 +339,6 @@ class _SignUpFormState extends State<SignUpForm> {
               } else if (u['telefone'] != null &&
                   u['telefone'].toString().trim().isNotEmpty) {
                 identifierValue = u['telefone'].toString();
-              } else if (u['user_name'] != null &&
-                  u['user_name'].toString().trim().isNotEmpty) {
-                identifierValue = u['user_name'].toString();
               }
             }
             Navigator.pushReplacement(

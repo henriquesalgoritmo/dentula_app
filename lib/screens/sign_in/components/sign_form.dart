@@ -236,6 +236,44 @@ class _SignFormState extends State<SignForm> {
           }
         }
 
+        // If backend indicates account needs verification, navigate there
+        final needsVerification =
+            (body is Map && body['needs_verification'] == true);
+        if (needsVerification) {
+          // Prefer identifier returned by backend (user.email or user.telefone)
+          String identifierValue = '';
+          try {
+            if (body is Map && body['user'] is Map) {
+              final Map<String, dynamic> u =
+                  Map<String, dynamic>.from(body['user']);
+              if (u['email'] != null && u['email'].toString().contains('@')) {
+                identifierValue = u['email'].toString();
+              } else if (u['telefone'] != null &&
+                  u['telefone'].toString().trim().isNotEmpty) {
+                identifierValue = u['telefone'].toString();
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+
+          scaffold.showSnackBar(const SnackBar(
+              content: Text('Conta não verificada — verifique agora.')));
+
+          // If identifier available, open verification screen; otherwise ask user
+          if (identifierValue.isNotEmpty) {
+            Navigator.of(context).pushReplacement(MaterialPageRoute(
+                builder: (_) =>
+                    VerificationScreen(identifier: identifierValue)));
+            return;
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text(
+                    'Impossível determinar email/telefone para verificação.')));
+            return;
+          }
+        }
+
         scaffold.showSnackBar(
             const SnackBar(content: Text('Usuário logado com sucesso!')));
 
@@ -244,19 +282,48 @@ class _SignFormState extends State<SignForm> {
         return;
       }
 
-      // If account not verified, backend returns 403 with needs_verification flag
+      // If account not verified, backend may return 403 with needs_verification flag
       if (status == 403) {
         try {
-          final needs = (body is Map && body['needs_verification'] != null)
-              ? body['needs_verification']
-              : null;
           final msg = (body is Map && body['message'] != null)
               ? body['message'].toString()
               : 'Conta não verificada';
-          // Navigate to verification screen with provided identifier
+
+          // Prefer identifier returned by backend (user.email or user.telefone)
+          String identifierValue = '';
+          try {
+            if (body is Map && body['user'] is Map) {
+              final Map<String, dynamic> u =
+                  Map<String, dynamic>.from(body['user']);
+              if (u['email'] != null && u['email'].toString().contains('@')) {
+                identifierValue = u['email'].toString();
+              } else if (u['telefone'] != null &&
+                  u['telefone'].toString().trim().isNotEmpty) {
+                identifierValue = u['telefone'].toString();
+              }
+            }
+          } catch (e) {
+            // ignore parsing errors
+          }
+
+          // Fallback: validate the input value as email or simple phone pattern
+          if (identifierValue.isEmpty && emailOrUsername != null) {
+            final v = emailOrUsername!.trim();
+            if (v.contains('@') && emailValidatorRegExp.hasMatch(v)) {
+              identifierValue = v;
+            } else if (RegExp(r'^\+?[0-9]{6,}$').hasMatch(v)) {
+              identifierValue = v;
+            }
+          }
+
+          if (identifierValue.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Use email ou telefone para verificação.')));
+            return;
+          }
+
           Navigator.of(context).pushReplacement(MaterialPageRoute(
-              builder: (_) =>
-                  VerificationScreen(identifier: emailOrUsername ?? '')));
+              builder: (_) => VerificationScreen(identifier: identifierValue)));
           ScaffoldMessenger.of(context)
               .showSnackBar(SnackBar(content: Text(msg)));
           return;

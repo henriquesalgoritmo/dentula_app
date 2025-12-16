@@ -238,7 +238,10 @@ class _ChangeContactScreenState extends State<ChangeContactScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('Contato atualizado e código reenviado')));
-          Navigator.of(context).pop(); // back to verification screen
+          // Navigate to confirm-change screen to enter code
+          Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ConfirmChangeContactScreen(
+                  initialIdentifier: widget.initialIdentifier)));
         }
         return;
       }
@@ -284,6 +287,95 @@ class _ChangeContactScreenState extends State<ChangeContactScreen> {
                 child: const Text('Atualizar contato')),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// Screen to confirm the contact change with the code sent to new contact
+class ConfirmChangeContactScreen extends StatefulWidget {
+  final String initialIdentifier;
+  const ConfirmChangeContactScreen({Key? key, required this.initialIdentifier})
+      : super(key: key);
+
+  @override
+  State<ConfirmChangeContactScreen> createState() =>
+      _ConfirmChangeContactScreenState();
+}
+
+class _ConfirmChangeContactScreenState
+    extends State<ConfirmChangeContactScreen> {
+  final _codeCtrl = TextEditingController();
+  bool loading = false;
+
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirm() async {
+    if (_codeCtrl.text.trim().isEmpty) return;
+    setState(() => loading = true);
+    final uri = Uri.parse('${getApiBaseUrl()}public-confirm-change-contact');
+    try {
+      final resp = await http.post(uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'email_or_telefone': widget.initialIdentifier,
+            'code': _codeCtrl.text.trim(),
+          }));
+      if (resp.statusCode == 200) {
+        final body = jsonDecode(resp.body);
+        if (body is Map && body['user'] != null) {
+          try {
+            final auth = Provider.of<AuthProvider>(context, listen: false);
+            await auth.updateUser(body['user'] as Map<String, dynamic>);
+          } catch (_) {}
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Contato confirmado')));
+          Navigator.of(context).pushReplacementNamed('/');
+        }
+        return;
+      }
+      final body = resp.body.isNotEmpty ? jsonDecode(resp.body) : {};
+      String msg = 'Erro ao confirmar contato';
+      if (body is Map) {
+        final first = body.values.first;
+        if (first is List && first.isNotEmpty) msg = first.first.toString();
+        if (body['message'] != null) msg = body['message'].toString();
+      }
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(msg)));
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erro: $e')));
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Confirmar alteração de contato')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(children: [
+          Text('Código enviado para: ${widget.initialIdentifier}'),
+          const SizedBox(height: 12),
+          TextField(
+              controller: _codeCtrl,
+              decoration: const InputDecoration(labelText: 'Código')),
+          const SizedBox(height: 12),
+          ElevatedButton(
+              onPressed: loading ? null : _confirm,
+              child: const Text('Confirmar')),
+        ]),
       ),
     );
   }

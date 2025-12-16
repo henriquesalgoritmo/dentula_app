@@ -8,12 +8,14 @@ class AuthProvider with ChangeNotifier {
   static const _tokenKey = 'token';
   static const _userKey = 'user';
   static const _selectedCountryKey = 'selected_country_id';
+  static const _selectedCountryNameKey = 'selected_country_name';
 
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   String? _token;
   Map<String, dynamic>? _user;
   int? _selectedCountryId;
+  String? _selectedCountryName;
 
   AuthProvider({String? token, Map<String, dynamic>? user}) {
     _token = token;
@@ -23,6 +25,7 @@ class AuthProvider with ChangeNotifier {
   String? get token => _token;
   Map<String, dynamic>? get user => _user;
   int? get selectedCountryId => _selectedCountryId;
+  String? get selectedCountryName => _selectedCountryName;
   bool get isLoggedIn => _token != null && _token!.isNotEmpty;
 
   Future<void> login(
@@ -58,15 +61,20 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Set selected country id (persist and notify)
-  Future<void> setSelectedCountryId(int? countryId) async {
+  /// Set selected country id and optional name (persist and notify)
+  Future<void> setSelectedCountry(int? countryId, {String? countryName}) async {
     _selectedCountryId = countryId;
+    _selectedCountryName = countryName;
     try {
       final prefs = await SharedPreferences.getInstance();
       if (countryId == null) {
         await prefs.remove(_selectedCountryKey);
+        await prefs.remove(_selectedCountryNameKey);
       } else {
         await prefs.setInt(_selectedCountryKey, countryId);
+        if (countryName != null) {
+          await prefs.setString(_selectedCountryNameKey, countryName);
+        }
       }
     } catch (e) {
       if (kDebugMode)
@@ -98,7 +106,9 @@ class AuthProvider with ChangeNotifier {
       Map<String, dynamic>? user;
       final prefs = await SharedPreferences.getInstance();
       final countryId = prefs.getInt(_selectedCountryKey);
+      final countryName = prefs.getString(_selectedCountryNameKey);
       _selectedCountryId = countryId;
+      _selectedCountryName = countryName;
       final userJson = prefs.getString(_userKey);
       if (userJson != null && userJson.isNotEmpty) {
         try {

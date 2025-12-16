@@ -72,6 +72,23 @@ class _VerificationScreenState extends State<VerificationScreen> {
           body: jsonEncode(payload));
 
       if (resp.statusCode == 200) {
+        // refresh user from API when logged in
+        try {
+          final auth = Provider.of<AuthProvider>(context, listen: false);
+          if (auth.isLoggedIn && auth.token != null) {
+            final userResp = await http.get(Uri.parse('${getApiBaseUrl()}user'), headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ${auth.token}'
+            });
+            if (userResp.statusCode == 200) {
+              final ubody = jsonDecode(userResp.body);
+              if (ubody is Map) {
+                await auth.updateUser(ubody as Map<String, dynamic>);
+              }
+            }
+          }
+        } catch (_) {}
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Conta verificada com sucesso')));

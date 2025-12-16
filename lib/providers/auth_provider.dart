@@ -7,11 +7,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AuthProvider with ChangeNotifier {
   static const _tokenKey = 'token';
   static const _userKey = 'user';
+  static const _selectedCountryKey = 'selected_country_id';
 
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   String? _token;
   Map<String, dynamic>? _user;
+  int? _selectedCountryId;
 
   AuthProvider({String? token, Map<String, dynamic>? user}) {
     _token = token;
@@ -20,6 +22,7 @@ class AuthProvider with ChangeNotifier {
 
   String? get token => _token;
   Map<String, dynamic>? get user => _user;
+  int? get selectedCountryId => _selectedCountryId;
   bool get isLoggedIn => _token != null && _token!.isNotEmpty;
 
   Future<void> login(
@@ -55,6 +58,23 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Set selected country id (persist and notify)
+  Future<void> setSelectedCountryId(int? countryId) async {
+    _selectedCountryId = countryId;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (countryId == null) {
+        await prefs.remove(_selectedCountryKey);
+      } else {
+        await prefs.setInt(_selectedCountryKey, countryId);
+      }
+    } catch (e) {
+      if (kDebugMode)
+        print('AuthProvider: could not persist selected country: $e');
+    }
+    notifyListeners();
+  }
+
   Future<void> logout() async {
     _token = null;
     _user = null;
@@ -77,6 +97,8 @@ class AuthProvider with ChangeNotifier {
       final token = await _secureStorage.read(key: _tokenKey);
       Map<String, dynamic>? user;
       final prefs = await SharedPreferences.getInstance();
+      final countryId = prefs.getInt(_selectedCountryKey);
+      _selectedCountryId = countryId;
       final userJson = prefs.getString(_userKey);
       if (userJson != null && userJson.isNotEmpty) {
         try {

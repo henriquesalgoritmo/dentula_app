@@ -36,13 +36,11 @@ class _InitScreenState extends State<InitScreen> {
   }
 
   List<Widget> get pages => [
-        const HomeScreen(),
-        const FavoriteScreen(),
+        const VideoFeedScreen(),
         const PacoteScreen(),
         SubscricaoScreen(initialPacote: widget.initialPacote),
         const PdfViewerTestScreen(),
         const ProfileScreen(),
-        const VideoFeedScreen()
       ];
 
   @override
@@ -99,7 +97,14 @@ class _InitScreenState extends State<InitScreen> {
           ),
         ),
       ),
-      body: pages[currentSelectedIndex],
+      body: Builder(builder: (ctx) {
+        final selectedCountry =
+            Provider.of<AuthProvider>(ctx).selectedCountryId;
+        return KeyedSubtree(
+          key: ValueKey('${currentSelectedIndex}_\$selectedCountry'),
+          child: pages[currentSelectedIndex],
+        );
+      }),
       bottomNavigationBar: BottomNavigationBar(
         onTap: updateCurrentIndex,
         currentIndex: currentSelectedIndex,
@@ -108,38 +113,9 @@ class _InitScreenState extends State<InitScreen> {
         type: BottomNavigationBarType.fixed,
         items: [
           BottomNavigationBarItem(
-            icon: SvgPicture.asset(
-              "assets/icons/Shop Icon.svg",
-              colorFilter: const ColorFilter.mode(
-                inActiveIconColor,
-                BlendMode.srcIn,
-              ),
-            ),
-            activeIcon: SvgPicture.asset(
-              "assets/icons/Shop Icon.svg",
-              colorFilter: const ColorFilter.mode(
-                kPrimaryColor,
-                BlendMode.srcIn,
-              ),
-            ),
-            label: "Home",
-          ),
-          BottomNavigationBarItem(
-            icon: SvgPicture.asset(
-              "assets/icons/Heart Icon.svg",
-              colorFilter: const ColorFilter.mode(
-                inActiveIconColor,
-                BlendMode.srcIn,
-              ),
-            ),
-            activeIcon: SvgPicture.asset(
-              "assets/icons/Heart Icon.svg",
-              colorFilter: const ColorFilter.mode(
-                kPrimaryColor,
-                BlendMode.srcIn,
-              ),
-            ),
-            label: "Fav",
+            icon: const Icon(Icons.video_library, color: inActiveIconColor),
+            activeIcon: const Icon(Icons.video_library, color: kPrimaryColor),
+            label: 'Videos',
           ),
           BottomNavigationBarItem(
             icon: SvgPicture.asset(
@@ -183,12 +159,7 @@ class _InitScreenState extends State<InitScreen> {
                 BlendMode.srcIn,
               ),
             ),
-            label: "Fav",
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.video_library, color: inActiveIconColor),
-            activeIcon: const Icon(Icons.video_library, color: kPrimaryColor),
-            label: 'Videos',
+            label: "Perfil",
           ),
         ],
       ),

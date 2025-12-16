@@ -1,8 +1,12 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
-import '../screens/cart/cart_screen.dart';
-import '../screens/home/components/icon_btn_with_counter.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+
 import '../screens/home/components/search_field.dart';
+import '../providers/auth_provider.dart';
+import '../api_config.dart';
 
 /// Reusable AppBar header with search field and action icons.
 /// Used across all pages after login.
@@ -36,24 +40,66 @@ class AppBarHeader extends StatelessWidget {
           else
             const SizedBox(width: 40), // Placeholder for alignment
 
-          // Search field (expanded)
+          // Se4arch field (expanded)
           const Expanded(child: SearchField()),
 
           const SizedBox(width: 16),
 
-          // Cart icon
-          IconBtnWithCounter(
-            svgSrc: "assets/icons/Cart Icon.svg",
-            press: () => Navigator.pushNamed(context, CartScreen.routeName),
-          ),
-
-          const SizedBox(width: 8),
-
-          // Bell/Notification icon
-          IconBtnWithCounter(
-            svgSrc: "assets/icons/Bell.svg",
-            numOfitem: 3,
-            press: () {},
+          // Country selector icon (replaces cart and notifications)
+          IconButton(
+            icon: const Icon(Icons.public),
+            onPressed: () async {
+              final auth = Provider.of<AuthProvider>(context, listen: false);
+              showModalBottomSheet(
+                context: context,
+                builder: (ctx) {
+                  return FutureBuilder<http.Response>(
+                    future: http.get(Uri.parse('${getApiBaseUrl()}paises')),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const SizedBox(
+                            height: 200,
+                            child: Center(child: CircularProgressIndicator()));
+                      }
+                      if (snapshot.hasError || snapshot.data == null) {
+                        return SizedBox(
+                            height: 200,
+                            child:
+                                Center(child: Text('Erro a carregar países')));
+                      }
+                      try {
+                        final list = (snapshot.data!.body.isNotEmpty)
+                            ? (jsonDecode(snapshot.data!.body) as List)
+                            : [];
+                        return ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: list.length,
+                          itemBuilder: (c, i) {
+                            final item = list[i];
+                            final id = item['id'];
+                            final nome = item['nome'] ?? item['name'] ?? '';
+                            return ListTile(
+                              title: Text(nome.toString()),
+                              onTap: () async {
+                                await auth.setSelectedCountryId(id is int
+                                    ? id
+                                    : int.tryParse(id.toString()));
+                                Navigator.pop(context);
+                              },
+                            );
+                          },
+                        );
+                      } catch (e) {
+                        return SizedBox(
+                            height: 200,
+                            child:
+                                Center(child: Text('Erro a analisar países')));
+                      }
+                    },
+                  );
+                },
+              );
+            },
           ),
         ],
       ),

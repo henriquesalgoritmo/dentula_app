@@ -219,8 +219,14 @@ class _ChangeContactScreenState extends State<ChangeContactScreen> {
   }
 
   Future<void> _submit() async {
-    if ((_emailCtrl.text.trim().isEmpty) && (_telefoneCtrl.text.trim().isEmpty))
+    if ((_emailCtrl.text.trim().isEmpty) &&
+        (_telefoneCtrl.text.trim().isEmpty)) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content:
+                Text('Informe pelo menos um: novo email ou novo telefone')));
       return;
+    }
     setState(() => loading = true);
     final uri = Uri.parse('${getApiBaseUrl()}change-contact');
     try {
@@ -276,11 +282,15 @@ class _ChangeContactScreenState extends State<ChangeContactScreen> {
             const SizedBox(height: 12),
             TextField(
                 controller: _emailCtrl,
-                decoration: const InputDecoration(labelText: 'Novo email')),
+                decoration: const InputDecoration(
+                    labelText: 'Novo email',
+                    helperText: 'Informe novo email ou preencha o telefone')),
             const SizedBox(height: 8),
             TextField(
                 controller: _telefoneCtrl,
-                decoration: const InputDecoration(labelText: 'Novo telefone')),
+                decoration: const InputDecoration(
+                    labelText: 'Novo telefone',
+                    helperText: 'Informe novo telefone ou preencha o email')),
             const SizedBox(height: 12),
             ElevatedButton(
                 onPressed: loading ? null : _submit,

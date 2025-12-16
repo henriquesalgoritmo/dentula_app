@@ -62,12 +62,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
     setState(() => loading = true);
     final uri = Uri.parse('${getApiBaseUrl()}verify-account');
     try {
+      final payload = {
+        'email_or_telefone': widget.identifier,
+        'code': _codeCtrl.text.trim(),
+      };
+      debugPrint('VERIFY sending to $uri payload: ${jsonEncode(payload)}');
       final resp = await http.post(uri,
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'email_or_telefone': widget.identifier,
-            'code': _codeCtrl.text.trim(),
-          }));
+          body: jsonEncode(payload));
 
       if (resp.statusCode == 200) {
         if (mounted) {
@@ -79,6 +81,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
       }
 
       final body = resp.body.isNotEmpty ? jsonDecode(resp.body) : {};
+      debugPrint('VERIFY response status: ${resp.statusCode}');
+      debugPrint('VERIFY response body: ${resp.body}');
       String msg = 'Erro ao verificar';
       if (body is Map) {
         final first = body.values.first;
@@ -89,6 +93,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
+      debugPrint('VERIFY exception: $e');
       if (mounted)
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Erro: $e')));

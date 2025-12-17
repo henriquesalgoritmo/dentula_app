@@ -10,6 +10,7 @@ import 'package:shop_app/screens/pacote/pacote_screen.dart';
 import 'package:shop_app/screens/subscricao/subscricao_screen.dart';
 import 'package:shop_app/screens/pdf_viewer/pdf_viewer_test_screen.dart';
 import 'package:shop_app/screens/profile/profile_screen.dart';
+import 'package:shop_app/screens/contact/contact_list_screen.dart';
 import 'package:shop_app/components/app_bar_header.dart';
 import 'package:shop_app/screens/video_feed/video_feed_screen.dart';
 import '../config/access_restrictions.dart';
@@ -41,6 +42,7 @@ class _InitScreenState extends State<InitScreen> {
         const PacoteScreen(),
         SubscricaoScreen(initialPacote: widget.initialPacote),
         const PdfViewerTestScreen(),
+        const ContactListScreen(),
         const ProfileScreen(),
       ];
 
@@ -204,6 +206,12 @@ class _InitScreenState extends State<InitScreen> {
             label: "PDF",
           ),
           BottomNavigationBarItem(
+            icon:
+                const Icon(Icons.chat_bubble_outline, color: inActiveIconColor),
+            activeIcon: Icon(Icons.chat_bubble, color: kPrimaryColor),
+            label: "Contactos",
+          ),
+          BottomNavigationBarItem(
             icon: SvgPicture.asset(
               "assets/icons/User Icon.svg",
               colorFilter: const ColorFilter.mode(
@@ -248,6 +256,8 @@ class _InitScreenState extends State<InitScreen> {
       case 3:
         return const PdfViewerTestScreen();
       case 4:
+        return const ContactListScreen();
+      case 5:
       default:
         return const ProfileScreen();
     }

@@ -115,6 +115,8 @@ class _PacoteScreenState extends State<PacoteScreen> {
     } catch (_) {}
   }
 
+  // (debug HEAD checks removed) keep only URL prints for debugging
+
   // File picking is done inline in the form using FilePicker
 
   Future<void> openForm({Map<String, dynamic>? pacote}) async {
@@ -429,9 +431,12 @@ class _PacoteScreenState extends State<PacoteScreen> {
                             itemBuilder: (context, index) {
                               final item = items[index];
                               final path = (item['path_capa'] ?? '').toString();
-                              final imageUrl = path.isNotEmpty
-                                  ? '${getApiBaseUrl()}storage/$path'
-                                  : null;
+                              final imageUrl =
+                                  path.isNotEmpty ? _proxyImageUrl(path) : null;
+                              // Debug: print full image URL used by the app
+                              debugPrint(
+                                  'Pacote id=${item['id']} imageUrl=$imageUrl');
+                              // only print the image URL for debugging
                               return PacoteCard(
                                 id: item['id'],
                                 designacao: item['designacao'] ?? '',
@@ -486,4 +491,23 @@ class _PacoteScreenState extends State<PacoteScreen> {
       ),
     );
   }
+}
+
+String _storageUrl(String path) {
+  final base = getApiBaseUrl();
+  // If base ends with /api/ remove the api/ so storage is served from root
+  if (base.endsWith('/api/') || base.endsWith('api/')) {
+    var server = base.replaceFirst(RegExp(r'api\/?$'), '');
+    server = server.replaceAll(RegExp(r'\/$'), '');
+    return '$server/storage/$path';
+  }
+  var root = base.replaceAll(RegExp(r'\/$'), '');
+  return '$root/storage/$path';
+}
+
+String _proxyImageUrl(String path) {
+  final base = getApiBaseUrl();
+  var root = base.replaceAll(RegExp(r'\/$'), '');
+  // base already contains the `/api` segment, so proxy endpoint is under api
+  return '$root/proxy-image/$path';
 }

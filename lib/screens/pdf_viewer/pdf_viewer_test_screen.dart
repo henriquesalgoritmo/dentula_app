@@ -1,5 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
+import '../../api_config.dart';
 import 'pdf_viewer_screen.dart';
 
 class PdfViewerTestScreen extends StatefulWidget {
@@ -12,227 +17,251 @@ class PdfViewerTestScreen extends StatefulWidget {
 }
 
 class _PdfViewerTestScreenState extends State<PdfViewerTestScreen> {
-  late TextEditingController _urlController;
-  final String defaultUrl =
-      'http://localhost:8000/api/file/uploads/oXxvegRNXUa9YMfjyYwA0tnJMx7JhjwZ3AND8mpo/pdf?_t=1765786844000';
-  bool _testingUrl = false;
-  String? _testResult;
+  bool loading = false;
+  List<dynamic> items = [];
 
   @override
   void initState() {
     super.initState();
-    _urlController = TextEditingController(text: defaultUrl);
+    fetchData();
   }
 
-  @override
-  void dispose() {
-    _urlController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _testUrl(String url) async {
-    if (url.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, insira uma URL válida')),
-      );
-      return;
-    }
-
-    setState(() {
-      _testingUrl = true;
-      _testResult = null;
-    });
-
+  Future<void> fetchData() async {
+    setState(() => loading = true);
     try {
-      print('Testando URL: $url');
-      final response = await http.head(Uri.parse(url)).timeout(
-            const Duration(seconds: 10),
-          );
-
-      print('Status Code: ${response.statusCode}');
-      print('Headers: ${response.headers}');
-
-      setState(() {
-        if (response.statusCode == 200) {
-          _testResult =
-              '✅ URL Válida (Status: ${response.statusCode})\n\nContent-Type: ${response.headers['content-type'] ?? 'N/A'}';
-        } else {
-          _testResult =
-              '⚠️ Resposta: ${response.statusCode}\n\n${response.reasonPhrase}';
+      final base = getApiBaseUrl();
+      final uri = Uri.parse('${base}documentos');
+      print('GET $uri');
+      // increase timeout and log response for debugging
+      final resp = await http.get(uri).timeout(const Duration(seconds: 20));
+      print('fetch documentos status: ${resp.statusCode}');
+      print('fetch documentos headers: ${resp.headers}');
+      print('fetch documentos body: ${resp.body}');
+      if (resp.statusCode == 200) {
+        final body = jsonDecode(resp.body);
+        setState(() {
+          items = body['data'] ?? [];
+        });
+      } else {
+        print('fetch documentos não OK: ${resp.statusCode}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Erro na API: ${resp.statusCode}')));
         }
-      });
-    } catch (e) {
-      print('Erro ao testar URL: $e');
-      setState(() {
-        _testResult = '❌ Erro: $e';
-      });
+      }
+    } catch (e, st) {
+      // Print full error and stack for diagnosis
+      print('Erro fetch documentos: $e');
+      print('Stack: $st');
+      if (e is TimeoutException) print('Request timed out after 20s');
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao buscar documentos: $e')));
     } finally {
-      setState(() => _testingUrl = false);
+      if (mounted) setState(() => loading = false);
     }
   }
 
-  void _openPdfViewer() {
-    final url = _urlController.text.trim();
-    if (url.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, insira uma URL válida')),
-      );
-      return;
-    }
+  String _proxyImageUrl(String path) {
+    final base = getApiBaseUrl();
+    var root = base.replaceAll(RegExp(r'\/$'), '');
+    return '$root/proxy-image/$path';
+  }
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => PdfViewerScreen(pdfUrl: url),
-      ),
+  String _toProxyPdf(String raw) {
+    if (raw.startsWith('http')) {
+      if (raw.contains('/storage/')) {
+        final idx = raw.indexOf('/storage/') + '/storage/'.length;
+        final path = raw.substring(idx);
+        return '${getApiBaseUrl()}proxy-image/$path';
+      }
+      return raw;
+    }
+    final p = raw.replaceAll(RegExp(r'^/+'), '');
+    return '${getApiBaseUrl()}proxy-image/$p';
+  }
+
+  String _buildDownloadUrl(String path) {
+    if (path.isEmpty) return '';
+    final parts = path.split('/');
+    if (parts.isEmpty) return '';
+    final last = parts.removeLast();
+    final lastParts = last.split('.');
+    if (lastParts.length < 2) {
+      // fallback to file route
+      return '${getApiBaseUrl()}file/$path';
+    }
+    final ext = lastParts.removeLast();
+    final filename = lastParts.join('.');
+    final folder = parts.join('/');
+    return '${getApiBaseUrl()}download/$folder/$filename/$ext';
+  }
+
+  void _openPdfViewerWithUrl(String raw) {
+    final url = _toProxyPdf(raw);
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'PDF',
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return SafeArea(
+          child: SizedBox(
+            width: MediaQuery.of(context).size.width,
+            height: MediaQuery.of(context).size.height,
+            child: Scaffold(
+              body: PdfViewerScreen(pdfUrl: url),
+            ),
+          ),
+        );
+      },
     );
+  }
+
+  Future<void> _downloadDocument(String path) async {
+    final url = _buildDownloadUrl(path);
+    if (url.isEmpty) return;
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível iniciar download')));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Visualizador de PDF'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: const Text('Documentos'),
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Insira a URL do PDF para visualizar:',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _urlController,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: 'Ex: http://localhost:8000/api/file/uploads/...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.all(12),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _testingUrl
-                        ? null
-                        : () => _testUrl(_urlController.text.trim()),
-                    icon: _testingUrl
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Icon(Icons.check_circle),
-                    label: const Text('Testar URL'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _openPdfViewer,
-                    icon: const Icon(Icons.open_in_new),
-                    label: const Text('Abrir PDF'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: fetchData,
+              child: items.isEmpty
+                  ? ListView(
+                      children: const [
+                        SizedBox(height: 80),
+                        Center(child: Text('Nenhum documento encontrado')),
+                      ],
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(12),
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final d = items[index];
+                        final capa = (d['path_capa'] as String? ?? '').trim();
+                        final pdf = (d['path_pdf'] as String? ?? '').trim();
+                        final titulo = d['titulo'] ?? '';
+                        final descricao = d['descricao'] ?? '';
+                        final pais = d['pais'] != null ? d['pais']['nome'] : '';
+
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Cover image
+                              if (capa.isNotEmpty)
+                                SizedBox(
+                                  height: 180,
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Image.network(
+                                          _proxyImageUrl(capa),
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (c, e, s) =>
+                                              const Center(
+                                                  child:
+                                                      Icon(Icons.broken_image)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(titulo,
+                                        style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 6),
+                                    Text(descricao,
+                                        style: const TextStyle(
+                                            color: Colors.grey)),
+                                    const SizedBox(height: 8),
+                                    if (pais.isNotEmpty)
+                                      Chip(
+                                        avatar: (pais.trim().length == 2)
+                                            ? ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(3),
+                                                child: Image.network(
+                                                  'https://flagcdn.com/w40/${pais.toLowerCase()}.png',
+                                                  width: 20,
+                                                  height: 14,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (c, e, s) =>
+                                                      CircleAvatar(
+                                                    radius: 10,
+                                                    child: Text(
+                                                        pais[0].toUpperCase()),
+                                                  ),
+                                                ),
+                                              )
+                                            : CircleAvatar(
+                                                radius: 10,
+                                                child:
+                                                    Text(pais[0].toUpperCase()),
+                                              ),
+                                        label: Text(pais),
+                                      ),
+                                    const SizedBox(height: 12),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Wrap(
+                                        spacing: 8,
+                                        children: [
+                                          ElevatedButton.icon(
+                                            onPressed: pdf.isNotEmpty
+                                                ? () => _downloadDocument(pdf)
+                                                : null,
+                                            icon: const Icon(Icons.download),
+                                            label: const Text('Baixar'),
+                                          ),
+                                          ElevatedButton.icon(
+                                            onPressed: pdf.isNotEmpty
+                                                ? () =>
+                                                    _openPdfViewerWithUrl(pdf)
+                                                : null,
+                                            icon: const Icon(Icons.open_in_new),
+                                            label: const Text('Abrir'),
+                                            style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.green),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  ],
+                                ),
+                              )
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                ),
-              ],
             ),
-            if (_testResult != null) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _testResult!.contains('✅')
-                      ? Colors.green.withOpacity(0.1)
-                      : _testResult!.contains('⚠️')
-                          ? Colors.orange.withOpacity(0.1)
-                          : Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: _testResult!.contains('✅')
-                        ? Colors.green
-                        : _testResult!.contains('⚠️')
-                            ? Colors.orange
-                            : Colors.red,
-                  ),
-                ),
-                child: Text(
-                  _testResult!,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '📋 URLs dos Comprobativos:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Verifique o console/terminal para ver as URLs dos comprobativos quando abrir uma subscrição.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'URL padrão: $defaultUrl',
-                    style:
-                        const TextStyle(fontSize: 11, fontFamily: 'monospace'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '⚠️ Dicas:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    '1. Use o botão "Testar URL" para verificar se a URL está acessível\n'
-                    '2. Se o PDF não carregar, clique em "Abrir no navegador"\n'
-                    '3. Verifique o console para mensagens de erro\n'
-                    '4. Certifique-se de que o backend está rodando (localhost:8000)',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

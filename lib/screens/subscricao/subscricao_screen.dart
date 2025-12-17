@@ -103,7 +103,13 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
       debugPrint('fetchData: headers: $headers');
       final resp = await http.get(uri, headers: headers);
       debugPrint('fetchData: status=${resp.statusCode}');
-      debugPrint('fetchData: body=${logging.responseBodyPreview(resp)}');
+      // Print full response body (UTF-8 safe) for debugging
+      try {
+        final full = utf8.decode(resp.bodyBytes, allowMalformed: true);
+        debugPrint('fetchData: fullBody=' + full);
+      } catch (e) {
+        debugPrint('fetchData: body (fallback)=${resp.body}');
+      }
       if (resp.statusCode == 200) {
         final body = jsonDecode(resp.body);
         setState(() {
@@ -702,15 +708,18 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                   status: statusStr,
                   onTap: () => editItem(it),
                   onDelete: () => deleteItem(it),
-                  imageUrl: (it['comprovante_pagamento_subscricao'] is List &&
-                          (it['comprovante_pagamento_subscricao'] as List)
-                              .isNotEmpty)
-                      ? _buildFileUrl(
-                          ((it['comprovante_pagamento_subscricao'] as List)
-                                      .first['path'] ??
-                                  '')
-                              .toString())
-                      : null,
+                  imageUrl: (pacote != null &&
+                          (pacote['path_capa'] ?? '').toString().isNotEmpty)
+                      ? _proxyImageUrl(pacote['path_capa'].toString())
+                      : (it['comprovante_pagamento_subscricao'] is List &&
+                              (it['comprovante_pagamento_subscricao'] as List)
+                                  .isNotEmpty)
+                          ? _buildFileUrl(
+                              ((it['comprovante_pagamento_subscricao'] as List)
+                                          .first['path'] ??
+                                      '')
+                                  .toString())
+                          : null,
                 ),
               ),
             );
@@ -761,15 +770,18 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                 status: statusStr,
                 onTap: () => editItem(it),
                 onDelete: () => deleteItem(it),
-                imageUrl: (it['comprovante_pagamento_subscricao'] is List &&
-                        (it['comprovante_pagamento_subscricao'] as List)
-                            .isNotEmpty)
-                    ? _buildFileUrl(
-                        ((it['comprovante_pagamento_subscricao'] as List)
-                                    .first['path'] ??
-                                '')
-                            .toString())
-                    : null,
+                imageUrl: (pacote != null &&
+                        (pacote['path_capa'] ?? '').toString().isNotEmpty)
+                    ? _proxyImageUrl(pacote['path_capa'].toString())
+                    : (it['comprovante_pagamento_subscricao'] is List &&
+                            (it['comprovante_pagamento_subscricao'] as List)
+                                .isNotEmpty)
+                        ? _buildFileUrl(
+                            ((it['comprovante_pagamento_subscricao'] as List)
+                                        .first['path'] ??
+                                    '')
+                                .toString())
+                        : null,
               ),
             ),
           );
@@ -780,15 +792,15 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
 
   Future<void> _previewFile(String path) async {
     if (path.isEmpty) return;
-    final url = _buildFileUrl(path);
+    final ext = path.split('.').last.toLowerCase();
+    final url = (ext == 'pdf') ? _proxyImageUrl(path) : _buildFileUrl(path);
     String cacheBusted(String u) {
       final ts = DateTime.now().millisecondsSinceEpoch;
       if (u.contains('?')) return '$u&_t=$ts';
       return '$u?_t=$ts';
     }
 
-    final ext = path.split('.').last.toLowerCase();
-
+    // ext already computed above
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) {
       // image preview with zoom
       await showDialog(
@@ -817,6 +829,7 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
 
     if (ext == 'pdf') {
       // show embedded PDF viewer using Syncfusion with download/cache controls
+      // Use proxy URL so web client gets proper CORS headers
       final filename = p.basename(path);
       final cached = await file_io.existsFile(filename);
       String? localPath;
@@ -1343,6 +1356,12 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
       ),
     );
   }
+}
+
+String _proxyImageUrl(String path) {
+  final base = getApiBaseUrl();
+  var root = base.replaceAll(RegExp(r'\/$'), '');
+  return '$root/proxy-image/$path';
 }
 
 // Small dialog widget that plays a network video using video_player

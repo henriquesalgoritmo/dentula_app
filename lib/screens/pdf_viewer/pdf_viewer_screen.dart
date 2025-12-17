@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:pdfx/pdfx.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
-import 'package:http/http.dart' as http;
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
+
+// Platform-aware PDF loader: uses conditional import to avoid `dart:io` on web
+import 'pdfio_stub.dart' if (dart.library.io) 'pdfio_io.dart';
 
 class PdfViewerScreen extends StatefulWidget {
   final String pdfUrl;
@@ -21,7 +21,7 @@ class PdfViewerScreen extends StatefulWidget {
 }
 
 class _PdfViewerScreenState extends State<PdfViewerScreen> {
-  late PdfControllerPinch _pdfController;
+  PdfControllerPinch? _pdfController;
   bool _isLoading = true;
   String? _errorMessage;
   int _currentPage = 1;
@@ -39,43 +39,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       print('URL: ${widget.pdfUrl}');
       print('==================');
 
-      // On web we can't use getTemporaryDirectory; open in browser instead
-      if (kIsWeb) {
-        await _openInBrowser();
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
-
-      // Download PDF from URL
-      print('Baixando PDF...');
-      final response = await http.get(Uri.parse(widget.pdfUrl)).timeout(
-            const Duration(seconds: 30),
-          );
-
-      if (response.statusCode != 200) {
-        throw Exception(
-            'Erro HTTP ${response.statusCode}: ${response.reasonPhrase}');
-      }
-
-      print('PDF baixado: ${response.bodyBytes.length} bytes');
-
-      // Save to temporary file
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/temp_pdf.pdf');
-      await tempFile.writeAsBytes(response.bodyBytes);
-
-      print('PDF salvo em: ${tempFile.path}');
-
-      // Load PDF document
-      final document = await PdfDocument.openFile(tempFile.path);
+      // Load PDF document (platform-aware helper handles web vs io)
+      final document = await loadPdfDocumentFromUrl(widget.pdfUrl);
       print('PDF carregado com sucesso');
       print('Total de páginas: ${document.pagesCount}');
 
-      _pdfController = PdfControllerPinch(
-        document: Future.value(document),
-      );
+      _pdfController = PdfControllerPinch(document: Future.value(document));
 
       setState(() {
         _isLoading = false;
@@ -111,16 +80,16 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   void _nextPage() {
-    if (_currentPage < _totalPages) {
-      _pdfController.nextPage(
+    if (_currentPage < _totalPages && _pdfController != null) {
+      _pdfController!.nextPage(
           duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
       setState(() => _currentPage++);
     }
   }
 
   void _previousPage() {
-    if (_currentPage > 1) {
-      _pdfController.previousPage(
+    if (_currentPage > 1 && _pdfController != null) {
+      _pdfController!.previousPage(
           duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
       setState(() => _currentPage--);
     }
@@ -128,7 +97,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   @override
   void dispose() {
-    _pdfController.dispose();
+    if (_pdfController != null) {
+      _pdfController!.dispose();
+    }
     super.dispose();
   }
 
@@ -172,7 +143,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               : Stack(
                   children: [
                     PdfViewPinch(
-                      controller: _pdfController,
+                      controller: _pdfController!,
                     ),
                     Positioned(
                       bottom: 16,

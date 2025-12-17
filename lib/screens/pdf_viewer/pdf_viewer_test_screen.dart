@@ -133,135 +133,172 @@ class _PdfViewerTestScreenState extends State<PdfViewerTestScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: const Text('Documentos'),
-        elevation: 0,
-      ),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: fetchData,
-              child: items.isEmpty
-                  ? ListView(
-                      children: const [
-                        SizedBox(height: 80),
-                        Center(child: Text('Nenhum documento encontrado')),
-                      ],
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: items.length,
-                      itemBuilder: (context, index) {
-                        final d = items[index];
-                        final capa = (d['path_capa'] as String? ?? '').trim();
-                        final pdf = (d['path_pdf'] as String? ?? '').trim();
-                        final titulo = d['titulo'] ?? '';
-                        final descricao = d['descricao'] ?? '';
-                        final pais = d['pais'] != null ? d['pais']['nome'] : '';
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Documentos',
+                      style:
+                          TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  SizedBox.shrink(),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : RefreshIndicator(
+                        onRefresh: fetchData,
+                        child: items.isEmpty
+                            ? ListView(
+                                children: const [
+                                  SizedBox(height: 80),
+                                  Center(
+                                      child:
+                                          Text('Nenhum documento encontrado')),
+                                ],
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.all(12),
+                                itemCount: items.length,
+                                itemBuilder: (context, index) {
+                                  final d = items[index];
+                                  final capa =
+                                      (d['path_capa'] as String? ?? '').trim();
+                                  final pdf =
+                                      (d['path_pdf'] as String? ?? '').trim();
+                                  final titulo = d['titulo'] ?? '';
+                                  final descricao = d['descricao'] ?? '';
+                                  final pais = d['pais'] != null
+                                      ? d['pais']['nome']
+                                      : '';
 
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Cover image
-                              if (capa.isNotEmpty)
-                                SizedBox(
-                                  height: 180,
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Image.network(
-                                          _proxyImageUrl(capa),
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (c, e, s) =>
-                                              const Center(
-                                                  child:
-                                                      Icon(Icons.broken_image)),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              Padding(
-                                padding: const EdgeInsets.all(12.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(titulo,
-                                        style: const TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold)),
-                                    const SizedBox(height: 6),
-                                    Text(descricao,
-                                        style: const TextStyle(
-                                            color: Colors.grey)),
-                                    const SizedBox(height: 8),
-                                    if (pais.isNotEmpty)
-                                      Chip(
-                                        avatar: (pais.trim().length == 2)
-                                            ? ClipRRect(
-                                                borderRadius:
-                                                    BorderRadius.circular(3),
-                                                child: Image.network(
-                                                  'https://flagcdn.com/w40/${pais.toLowerCase()}.png',
-                                                  width: 20,
-                                                  height: 14,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (c, e, s) =>
-                                                      CircleAvatar(
-                                                    radius: 10,
-                                                    child: Text(
-                                                        pais[0].toUpperCase()),
+                                  return Card(
+                                    margin:
+                                        const EdgeInsets.symmetric(vertical: 8),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (capa.isNotEmpty)
+                                          SizedBox(
+                                            height: 180,
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Image.network(
+                                                    _proxyImageUrl(capa),
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (c, e, s) =>
+                                                        const Center(
+                                                            child: Icon(Icons
+                                                                .broken_image)),
                                                   ),
                                                 ),
+                                              ],
+                                            ),
+                                          ),
+                                        Padding(
+                                          padding: const EdgeInsets.all(12.0),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(titulo,
+                                                  style: const TextStyle(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.bold)),
+                                              const SizedBox(height: 6),
+                                              Text(descricao,
+                                                  style: const TextStyle(
+                                                      color: Colors.grey)),
+                                              const SizedBox(height: 8),
+                                              if (pais.isNotEmpty)
+                                                Chip(
+                                                  avatar: (pais.trim().length ==
+                                                          2)
+                                                      ? ClipRRect(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(3),
+                                                          child: Image.network(
+                                                            'https://flagcdn.com/w40/${pais.toLowerCase()}.png',
+                                                            width: 20,
+                                                            height: 14,
+                                                            fit: BoxFit.cover,
+                                                            errorBuilder: (c, e,
+                                                                    s) =>
+                                                                CircleAvatar(
+                                                              radius: 10,
+                                                              child: Text(pais[
+                                                                      0]
+                                                                  .toUpperCase()),
+                                                            ),
+                                                          ),
+                                                        )
+                                                      : CircleAvatar(
+                                                          radius: 10,
+                                                          child: Text(pais[0]
+                                                              .toUpperCase()),
+                                                        ),
+                                                  label: Text(pais),
+                                                ),
+                                              const SizedBox(height: 12),
+                                              Align(
+                                                alignment:
+                                                    Alignment.centerRight,
+                                                child: Wrap(
+                                                  spacing: 8,
+                                                  children: [
+                                                    ElevatedButton.icon(
+                                                      onPressed: pdf.isNotEmpty
+                                                          ? () =>
+                                                              _downloadDocument(
+                                                                  pdf)
+                                                          : null,
+                                                      icon: const Icon(
+                                                          Icons.download),
+                                                      label:
+                                                          const Text('Baixar'),
+                                                    ),
+                                                    ElevatedButton.icon(
+                                                      onPressed: pdf.isNotEmpty
+                                                          ? () =>
+                                                              _openPdfViewerWithUrl(
+                                                                  pdf)
+                                                          : null,
+                                                      icon: const Icon(
+                                                          Icons.open_in_new),
+                                                      label:
+                                                          const Text('Abrir'),
+                                                      style: ElevatedButton
+                                                          .styleFrom(
+                                                              backgroundColor:
+                                                                  Colors.green),
+                                                    ),
+                                                  ],
+                                                ),
                                               )
-                                            : CircleAvatar(
-                                                radius: 10,
-                                                child:
-                                                    Text(pais[0].toUpperCase()),
-                                              ),
-                                        label: Text(pais),
-                                      ),
-                                    const SizedBox(height: 12),
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: Wrap(
-                                        spacing: 8,
-                                        children: [
-                                          ElevatedButton.icon(
-                                            onPressed: pdf.isNotEmpty
-                                                ? () => _downloadDocument(pdf)
-                                                : null,
-                                            icon: const Icon(Icons.download),
-                                            label: const Text('Baixar'),
+                                            ],
                                           ),
-                                          ElevatedButton.icon(
-                                            onPressed: pdf.isNotEmpty
-                                                ? () =>
-                                                    _openPdfViewerWithUrl(pdf)
-                                                : null,
-                                            icon: const Icon(Icons.open_in_new),
-                                            label: const Text('Abrir'),
-                                            style: ElevatedButton.styleFrom(
-                                                backgroundColor: Colors.green),
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                  ],
-                                ),
-                              )
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
+                                        )
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

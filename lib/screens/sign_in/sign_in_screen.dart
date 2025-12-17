@@ -12,7 +12,7 @@ class SignInScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Sign In"),
+        title: const Text("Iniciar sessão"),
       ),
       body: SafeArea(
         child: SizedBox(
@@ -24,7 +24,7 @@ class SignInScreen extends StatelessWidget {
                 children: [
                   const SizedBox(height: 16),
                   const Text(
-                    "Welcome Back",
+                    "Bem-vindo de volta",
                     style: TextStyle(
                       color: Colors.black,
                       fontSize: 24,
@@ -32,7 +32,7 @@ class SignInScreen extends StatelessWidget {
                     ),
                   ),
                   const Text(
-                    "Sign in with your email and password  \nor continue with social media",
+                    "Inicie sessão com o seu email e palavra-passe\nou continue com uma rede social",
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),

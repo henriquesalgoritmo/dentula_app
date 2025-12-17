@@ -187,7 +187,7 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> {
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : items.isEmpty
-              ? const Center(child: Text('No content'))
+              ? const Center(child: Text('Sem conteúdo'))
               : PageView.builder(
                   controller: _pageController,
                   scrollDirection: Axis.vertical,

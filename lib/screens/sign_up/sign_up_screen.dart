@@ -12,7 +12,7 @@ class SignUpScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Sign Up"),
+        title: const Text("Registar"),
       ),
       body: SafeArea(
         child: SizedBox(
@@ -23,9 +23,9 @@ class SignUpScreen extends StatelessWidget {
               child: Column(
                 children: [
                   const SizedBox(height: 16),
-                  const Text("Register Account", style: headingStyle),
+                  const Text("Criar Conta", style: headingStyle),
                   const Text(
-                    "Complete your details or continue \nwith social media",
+                    "Complete os seus dados ou continue\ncom uma rede social",
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
@@ -50,7 +50,7 @@ class SignUpScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'By continuing your confirm that you agree \nwith our Term and Condition',
+                    'Ao continuar confirma que concorda\ncom os nossos Termos e Condições',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodySmall,
                   )

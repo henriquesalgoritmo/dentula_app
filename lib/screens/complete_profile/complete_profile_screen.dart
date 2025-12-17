@@ -11,7 +11,7 @@ class CompleteProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sign Up'),
+        title: const Text('Registar'),
       ),
       body: SafeArea(
         child: SizedBox(
@@ -22,16 +22,16 @@ class CompleteProfileScreen extends StatelessWidget {
               child: Column(
                 children: [
                   const SizedBox(height: 16),
-                  const Text("Complete Profile", style: headingStyle),
+                  const Text("Completar Perfil", style: headingStyle),
                   const Text(
-                    "Complete your details or continue  \nwith social media",
+                    "Complete os seus dados ou continue\ncom uma rede social",
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
                   const CompleteProfileForm(),
                   const SizedBox(height: 30),
                   Text(
-                    "By continuing your confirm that you agree \nwith our Term and Condition",
+                    "Ao continuar confirma que concorda\ncom os nossos Termos e Condições",
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodySmall,
                   ),

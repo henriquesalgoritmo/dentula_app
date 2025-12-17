@@ -87,13 +87,13 @@ class _SignUpFormState extends State<SignUpForm> {
             keyboardType: TextInputType.text,
             onSaved: (newValue) => name = newValue,
             decoration: const InputDecoration(
-              labelText: "Name",
-              hintText: "Enter your name",
+              labelText: "Nome",
+              hintText: "Insira o seu nome",
               floatingLabelBehavior: FloatingLabelBehavior.always,
             ),
             validator: (value) {
               if (value == null || value.isEmpty)
-                return 'Please enter your name';
+                return 'Por favor insira o seu nome';
               return null;
             },
           ),
@@ -120,7 +120,7 @@ class _SignUpFormState extends State<SignUpForm> {
             },
             decoration: const InputDecoration(
               labelText: "Email",
-              hintText: "Enter your email",
+              hintText: "Insira o seu email",
               floatingLabelBehavior: FloatingLabelBehavior.always,
               suffixIcon: CustomSurffixIcon(svgIcon: "assets/icons/Mail.svg"),
             ),
@@ -139,7 +139,7 @@ class _SignUpFormState extends State<SignUpForm> {
             },
             decoration: const InputDecoration(
               labelText: "Telefone",
-              hintText: "Enter phone",
+              hintText: "Insira o seu telefone",
               floatingLabelBehavior: FloatingLabelBehavior.always,
             ),
           ),
@@ -168,8 +168,8 @@ class _SignUpFormState extends State<SignUpForm> {
               return null;
             },
             decoration: const InputDecoration(
-              labelText: "Password",
-              hintText: "Enter your password",
+              labelText: "Palavra-passe",
+              hintText: "Insira a sua palavra-passe",
               floatingLabelBehavior: FloatingLabelBehavior.always,
               suffixIcon: CustomSurffixIcon(svgIcon: "assets/icons/Lock.svg"),
             ),
@@ -199,8 +199,8 @@ class _SignUpFormState extends State<SignUpForm> {
               return null;
             },
             decoration: const InputDecoration(
-              labelText: "Confirm Password",
-              hintText: "Re-enter your password",
+              labelText: "Confirmar palavra-passe",
+              hintText: "Reinsira a palavra-passe",
               floatingLabelBehavior: FloatingLabelBehavior.always,
               suffixIcon: CustomSurffixIcon(svgIcon: "assets/icons/Lock.svg"),
             ),
@@ -231,8 +231,8 @@ class _SignUpFormState extends State<SignUpForm> {
             keyboardType: TextInputType.text,
             onSaved: (newValue) => codigoAfilhao = newValue,
             decoration: const InputDecoration(
-              labelText: "Codigo Afilhao",
-              hintText: "Enter codigo",
+              labelText: "Código de Afiliado",
+              hintText: "Insira o código",
               floatingLabelBehavior: FloatingLabelBehavior.always,
             ),
           ),
@@ -261,7 +261,7 @@ class _SignUpFormState extends State<SignUpForm> {
                         (telefone == null || telefone!.isEmpty)) {
                       addError(error: kEmailOrPhoneNullError);
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('Please enter email or phone')));
+                          content: Text('Por favor insira email ou telefone')));
                       return;
                     }
 

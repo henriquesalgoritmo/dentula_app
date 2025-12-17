@@ -195,7 +195,7 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
           height: MediaQuery.of(context).size.height,
           child: Scaffold(
             appBar: AppBar(
-              title: Text('Verificar Subscrição #${form['id']}'),
+              title: Text('Visualizar Subscrição #${form['id']}'),
               leading: IconButton(
                 icon: const Icon(Icons.close),
                 onPressed: () => Navigator.of(d).pop(),
@@ -1310,7 +1310,7 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                     onPressed: () => setState(() => verificar = false),
                   ),
                   const SizedBox(width: 8),
-                  const Text('Verificar Subscrição',
+                  const Text('Visualizar Subscrição',
                       style:
                           TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                 ])

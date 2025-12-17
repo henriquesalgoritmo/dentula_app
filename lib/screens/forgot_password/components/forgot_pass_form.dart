@@ -53,7 +53,7 @@ class _ForgotPassFormState extends State<ForgotPassForm> {
             },
             decoration: const InputDecoration(
               labelText: "Email",
-              hintText: "Enter your email",
+              hintText: "Insira o seu email",
               // If  you are using latest version of flutter then lable text and hint text shown like this
               // if you r using flutter less then 1.20.* then maybe this is not working properly
               floatingLabelBehavior: FloatingLabelBehavior.always,
@@ -69,7 +69,7 @@ class _ForgotPassFormState extends State<ForgotPassForm> {
                 // Do what you want to do
               }
             },
-            child: const Text("Continue"),
+            child: const Text("Continuar"),
           ),
           const SizedBox(height: 16),
           const NoAccountText(),

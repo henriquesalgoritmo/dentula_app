@@ -12,7 +12,7 @@ class OtpScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("OTP Verification"),
+        title: const Text("Verificação do código"),
       ),
       body: SizedBox(
         width: double.infinity,
@@ -23,14 +23,14 @@ class OtpScreen extends StatelessWidget {
               children: [
                 const SizedBox(height: 16),
                 const Text(
-                  "OTP Verification",
+                  "Verificação do código",
                   style: headingStyle,
                 ),
-                const Text("We sent your code to +1 898 860 ***"),
+                const Text("Enviámos o seu código para +1 898 860 ***"),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text("This code will expired in "),
+                    const Text("Este código expira em "),
                     TweenAnimationBuilder(
                       tween: Tween(begin: 30.0, end: 0.0),
                       duration: const Duration(seconds: 30),
@@ -48,7 +48,7 @@ class OtpScreen extends StatelessWidget {
                     // OTP code resend
                   },
                   child: const Text(
-                    "Resend OTP Code",
+                    "Reenviar código",
                     style: TextStyle(decoration: TextDecoration.underline),
                   ),
                 )

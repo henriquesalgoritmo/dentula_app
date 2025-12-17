@@ -107,7 +107,7 @@ class _OtpFormState extends State<OtpForm> {
           SizedBox(height: MediaQuery.of(context).size.height * 0.15),
           ElevatedButton(
             onPressed: () {},
-            child: const Text("Continue"),
+            child: const Text("Continuar"),
           ),
         ],
       ),

@@ -68,7 +68,7 @@ class DetailsScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.pushNamed(context, CartScreen.routeName);
               },
-              child: const Text("Add To Cart"),
+              child: const Text("Adicionar ao carrinho"),
             ),
           ),
         ),

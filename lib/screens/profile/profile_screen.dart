@@ -71,7 +71,7 @@ class ProfileScreen extends StatelessWidget {
           }),
           const SizedBox(height: 20),
           ProfileMenu(
-            text: "My Account",
+            text: "Minha conta",
             icon: "assets/icons/User Icon.svg",
             press: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const AccountScreen()),
@@ -100,7 +100,7 @@ class ProfileScreen extends StatelessWidget {
           //   press: () {},
           // ),
           ProfileMenu(
-            text: "Log Out",
+            text: "Terminar sessão",
             icon: "assets/icons/Log out.svg",
             press: () async {
               final auth = Provider.of<AuthProvider>(context, listen: false);

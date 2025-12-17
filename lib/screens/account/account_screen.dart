@@ -86,10 +86,9 @@ class _AccountScreenState extends State<AccountScreen> {
       })();
 
       final uri = Uri.parse('${getApiBaseUrl()}user');
+      // Enviar apenas o campo `name` para limitar a alteração no backend
       final body = {
         'name': _nameCtrl.text.trim(),
-        'email': _emailCtrl.text.trim(),
-        'telefone': _telefoneCtrl.text.trim(),
       };
       // Password changes are handled on a separate screen
 
@@ -138,18 +137,19 @@ class _AccountScreenState extends State<AccountScreen> {
                   validator: (v) =>
                       (v == null || v.isEmpty) ? 'Obrigatório' : null,
                 ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _emailCtrl,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                  validator: (v) =>
-                      (v == null || v.isEmpty) ? 'Obrigatório' : null,
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _telefoneCtrl,
-                  decoration: const InputDecoration(labelText: 'Telefone'),
-                ),
+                // Campos desativados: permitir apenas alterar o nome por enquanto
+                // const SizedBox(height: 8),
+                // TextFormField(
+                //   controller: _emailCtrl,
+                //   decoration: const InputDecoration(labelText: 'Email'),
+                //   validator: (v) =>
+                //       (v == null || v.isEmpty) ? 'Obrigatório' : null,
+                // ),
+                // const SizedBox(height: 8),
+                // TextFormField(
+                //   controller: _telefoneCtrl,
+                //   decoration: const InputDecoration(labelText: 'Telefone'),
+                // ),
                 const SizedBox(height: 12),
                 const SizedBox(height: 8),
                 ElevatedButton(

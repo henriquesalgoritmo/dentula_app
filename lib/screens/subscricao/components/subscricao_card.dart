@@ -138,7 +138,7 @@ class SubscricaoCard extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                           onPressed: onTap,
-                          child: const Text('Verificar',
+                          child: const Text('Visualizar',
                               style:
                                   TextStyle(fontSize: 14, color: Colors.white)),
                         ),
@@ -177,7 +177,7 @@ class SubscricaoCard extends StatelessWidget {
                                 vertical: isMobile ? 10 : 12),
                           ),
                           onPressed: onTap,
-                          child: Text('Verificar',
+                          child: Text('Visualizar',
                               style: TextStyle(
                                   fontSize: isMobile ? 14 : 15,
                                   color: Colors.white)),

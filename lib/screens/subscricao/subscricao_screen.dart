@@ -16,6 +16,7 @@ import 'package:shop_app/utils/file_io_web.dart'
 import 'package:shop_app/utils/logging.dart' as logging;
 
 import '../../api_config.dart';
+import 'package:shop_app/screens/pdf_viewer/pdf_viewer_screen.dart';
 import '../../providers/auth_provider.dart';
 import 'components/subscricao_card.dart';
 
@@ -56,7 +57,7 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
     'motivoAnulacaoOrRejeicao': ''
   };
   // inline preview state per comprovante
-  final Map<int, bool> _showPreview = {};
+  // (preview UI removed; keep only expansion and external open)
   final Map<int, double> _previewZoom = {};
   final Map<int, bool> _expanded = {};
   // controllers per comprovante to avoid recreating controllers in build
@@ -163,7 +164,6 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
 
       for (var i = 0; i < comps.length; i++) {
         final c = comps[i] as Map<String, dynamic>;
-        _showPreview[i] = false;
         _previewZoom[i] = 1.0;
         // init controllers
         final dateIso = c['data_movimento']?.toString() ?? '';
@@ -928,9 +928,53 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
     if (await canLaunchUrl(uri)) await launchUrl(uri);
   }
 
+  String _toProxyPdf(String raw) {
+    if (raw.startsWith('http')) {
+      if (raw.contains('/storage/') || raw.contains('/uploads/')) {
+        final idx = raw.indexOf('/storage/') + '/storage/'.length;
+        final path = idx > '/storage/'.length ? raw.substring(idx) : raw;
+        return '${getApiBaseUrl()}proxy-image/$path';
+      }
+      return raw;
+    }
+    final p = raw.replaceAll(RegExp(r'^/+'), '');
+    return '${getApiBaseUrl()}proxy-image/$p';
+  }
+
+  void _openPdfViewerWithUrl(String raw) {
+    final url = _toProxyPdf(raw);
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'PDF',
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return SafeArea(
+          child: SizedBox(
+            width: MediaQuery.of(context).size.width,
+            height: MediaQuery.of(context).size.height,
+            child: Scaffold(
+              body: PdfViewerScreen(pdfUrl: url),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // Build file URL matching backend expected format (id/extension)
   String _buildFileUrl(String path) {
     if (path.isEmpty) return '';
+    // If the stored path looks like an uploads/storage path, prefer the proxy-image route
+    final lower = path.toLowerCase();
+    if (lower.contains('uploads/') ||
+        lower.contains('/storage/') ||
+        lower.startsWith('uploads')) {
+      var p = path.replaceAll(RegExp(r'^/+'), '');
+      final base = getApiBaseUrl();
+      var root = base.replaceAll(RegExp(r'\/$'), '');
+      return '$root/proxy-image/$p';
+    }
     final parts = path.split('.');
     if (parts.length < 2) return '${getApiBaseUrl()}file/$path';
     final ext = parts.removeLast();
@@ -997,8 +1041,9 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
     for (int i = 0; i < comprovantes.length; i++) {
       final c = comprovantes[i] as Map<String, dynamic>;
       final path = (c['path'] ?? '').toString();
-      final url = _buildFileUrl(path);
-      print('Comprobativo ${i + 1}: $url');
+      final proxy = _buildFileUrl(path);
+      final direct = (path.isNotEmpty) ? _buildFileUrl(path) : '';
+      print('Comprobativo ${i + 1}: $proxy');
     }
     print('==============================');
   }
@@ -1060,10 +1105,6 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
             expansionCallback: (panelIndex, isExpanded) => setStateDialog(() {
               final newVal = !isExpanded;
               _expanded[panelIndex] = newVal;
-              if (!newVal) {
-                // when panel is collapsed, ensure inline preview is hidden
-                _showPreview[panelIndex] = false;
-              }
             }),
             children: comprovantes.asMap().entries.map((entry) {
               final idx = entry.key;
@@ -1079,20 +1120,19 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                     onTap: () => setStateDialog(() {
                       final newVal = !(_expanded[idx] ?? false);
                       _expanded[idx] = newVal;
-                      if (!newVal) _showPreview[idx] = false;
                     }),
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                       IconButton(
-                        icon: const Icon(Icons.remove_red_eye),
-                        onPressed: () => setStateDialog(() {
-                          final newVal = !(_showPreview[idx] ?? false);
-                          _showPreview[idx] = newVal;
-                          if (newVal) _expanded[idx] = true;
-                        }),
-                      ),
-                      IconButton(
                         icon: const Icon(Icons.open_in_new),
-                        onPressed: () async => await _previewFile(path),
+                        onPressed: () async {
+                          final ext = path.split('.').last.toLowerCase();
+                          if (ext == 'pdf') {
+                            _openPdfViewerWithUrl(path);
+                          } else {
+                            // images / other files: use preview handler (opens externally)
+                            await _previewFile(path);
+                          }
+                        },
                       ),
                     ]),
                   );
@@ -1102,53 +1142,25 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Data with date picker
-                      GestureDetector(
-                        onTap: () async {
-                          DateTime? initial;
-                          try {
-                            if (c['data_movimento'] != null &&
-                                c['data_movimento'].toString().isNotEmpty) {
-                              initial = DateTime.parse(
-                                  c['data_movimento'].toString());
-                            }
-                          } catch (_) {}
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: initial ?? DateTime.now(),
-                            firstDate: DateTime(2000),
-                            lastDate: DateTime(2100),
-                          );
-                          if (picked != null)
-                            setStateDialog(() => c['data_movimento'] =
-                                picked.toIso8601String().split('T').first);
-                        },
-                        child: AbsorbPointer(
-                          child: TextFormField(
-                            controller: TextEditingController(
-                                text: _formatDisplayDate(
-                                    c['data_movimento']?.toString() ?? '')),
-                            decoration:
-                                const InputDecoration(labelText: 'Data'),
-                          ),
+                      // Data (somente leitura)
+                      AbsorbPointer(
+                        child: TextFormField(
+                          controller: TextEditingController(
+                              text: _formatDisplayDate(
+                                  c['data_movimento']?.toString() ?? '')),
+                          decoration: const InputDecoration(labelText: 'Data'),
+                          readOnly: true,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      // Valor with numeric formatting/validation
+                      // Valor (somente leitura)
                       TextFormField(
                         initialValue: c['valor']?.toString() ?? '',
                         decoration: const InputDecoration(labelText: 'Valor'),
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9\.,]'))
-                        ],
-                        onChanged: (v) {
-                          final normalized = v.replaceAll(',', '.');
-                          c['valor'] = normalized;
-                        },
+                        readOnly: true,
                       ),
                       const SizedBox(height: 8),
+                      // Banco (somente leitura / disabled)
                       DropdownButtonFormField<int>(
                         value: c['coordenadas_bancaria_id'] != null
                             ? int.tryParse(
@@ -1163,76 +1175,30 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                               value: id, child: Text(label));
                         }).toList(),
                         decoration: const InputDecoration(labelText: 'Banco'),
-                        onChanged: (v) => setStateDialog(
-                            () => c['coordenadas_bancaria_id'] = v),
+                        onChanged: null,
+                        disabledHint: Builder(builder: (ctx) {
+                          try {
+                            final id = c['coordenadas_bancaria_id'];
+                            final found = bancos.firstWhere(
+                                (b) => b['id'].toString() == id?.toString(),
+                                orElse: () => null);
+                            final label = found != null
+                                ? (found['nome'] ?? found['name'] ?? '')
+                                : '';
+                            return Text(label);
+                          } catch (_) {
+                            return const SizedBox.shrink();
+                          }
+                        }),
                       ),
                       const SizedBox(height: 8),
+                      // Nº Transação (somente leitura)
                       TextFormField(
                         initialValue: c['numero_transaccao']?.toString() ?? '',
                         decoration:
                             const InputDecoration(labelText: 'Nº Transação'),
-                        onChanged: (v) => c['numero_transaccao'] = v,
+                        readOnly: true,
                       ),
-                      const SizedBox(height: 8),
-                      if (_showPreview[idx] ?? false) ...[
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          height: 250,
-                          child: Builder(builder: (context) {
-                            final ext = path.split('.').last.toLowerCase();
-                            if (['jpg', 'jpeg', 'png', 'gif', 'webp']
-                                .contains(ext)) {
-                              return Column(children: [
-                                Expanded(
-                                  child: PhotoView(
-                                    imageProvider:
-                                        NetworkImage(_cacheBustedUrl(url)),
-                                    loadingBuilder: (context, event) =>
-                                        const Center(
-                                            child: CircularProgressIndicator()),
-                                  ),
-                                ),
-                                Slider(
-                                  value: (_previewZoom[idx] ?? 1.0)
-                                      .clamp(0.5, 3.0),
-                                  min: 0.5,
-                                  max: 3.0,
-                                  onChanged: (v) => setStateDialog(
-                                      () => _previewZoom[idx] = v),
-                                )
-                              ]);
-                            }
-                            if (ext == 'pdf') {
-                              return file_io.buildPdfViewer(
-                                  localPath: null, url: _cacheBustedUrl(url));
-                            }
-                            if (['mp4', 'webm', 'ogg'].contains(ext)) {
-                              return Center(
-                                child: ElevatedButton.icon(
-                                  icon: const Icon(Icons.play_circle_fill),
-                                  label: const Text('Reproduzir vídeo'),
-                                  onPressed: () => showDialog(
-                                      context: context,
-                                      builder: (_) => _VideoPreviewDialog(
-                                          url: _cacheBustedUrl(url))),
-                                ),
-                              );
-                            }
-                            return Center(
-                              child: ElevatedButton.icon(
-                                icon: const Icon(Icons.open_in_new),
-                                label: const Text('Abrir arquivo'),
-                                onPressed: () async {
-                                  final uri = Uri.parse(_cacheBustedUrl(url));
-                                  if (await canLaunchUrl(uri))
-                                    await launchUrl(uri,
-                                        mode: LaunchMode.externalApplication);
-                                },
-                              ),
-                            );
-                          }),
-                        )
-                      ]
                     ],
                   ),
                 ),
@@ -1244,7 +1210,7 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
         const SizedBox(height: 12),
         TextFormField(
           initialValue: form['motivoAnulacaoOrRejeicao'] ?? '',
-          onChanged: (v) => form['motivoAnulacaoOrRejeicao'] = v,
+          readOnly: true,
           maxLines: 3,
           decoration: const InputDecoration(labelText: 'Motivo'),
         ),

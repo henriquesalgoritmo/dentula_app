@@ -99,7 +99,7 @@ class PacoteCard extends StatelessWidget {
                       side: BorderSide(color: Theme.of(context).primaryColor),
                     ),
                     onPressed: onTap,
-                    child: const Text('Detalhes'),
+                    child: const Text('Pagar Agora'),
                   ),
                 ],
               )

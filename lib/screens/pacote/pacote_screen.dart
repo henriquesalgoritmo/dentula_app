@@ -447,7 +447,7 @@ class _PacoteScreenState extends State<PacoteScreen> {
                                 onTap: () => Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (_) => InitScreen(
-                                      initialIndex: 3,
+                                      initialIndex: 2,
                                       initialPacote: item,
                                     ),
                                   ),

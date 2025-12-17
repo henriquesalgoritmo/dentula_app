@@ -12,6 +12,7 @@ import 'package:shop_app/screens/pdf_viewer/pdf_viewer_test_screen.dart';
 import 'package:shop_app/screens/profile/profile_screen.dart';
 import 'package:shop_app/components/app_bar_header.dart';
 import 'package:shop_app/screens/video_feed/video_feed_screen.dart';
+import '../config/access_restrictions.dart';
 
 const Color inActiveIconColor = Color(0xFFB6B6B6);
 
@@ -42,6 +43,63 @@ class _InitScreenState extends State<InitScreen> {
         const PdfViewerTestScreen(),
         const ProfileScreen(),
       ];
+
+  bool _hasPacoteIds(Map<String, dynamic>? user) {
+    if (user == null) return false;
+    try {
+      // Look for any key that contains 'pacote' (robust to malformed keys)
+      for (final k in user.keys) {
+        final lk = k.toString().toLowerCase();
+        if (lk.contains('pacote')) {
+          final v = user[k];
+          if (v is List && v.isNotEmpty) return true;
+          if (v is String && v.trim().isNotEmpty) {
+            // try to decode JSON list
+            try {
+              final decoded = v.trim();
+              if (decoded.startsWith('[') && decoded.endsWith(']')) {
+                return (decoded.isNotEmpty && decoded.length > 2);
+              }
+              return true;
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  Widget _accessBlockedPlaceholder(BuildContext context, String title) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            const Text(
+              'Acesso bloqueado. É necessário comprar um pacote para aceder a este conteúdo.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () {
+                // switch to the Pacotes tab instead of pushing a new page
+                updateCurrentIndex(1);
+              },
+              child: const Text('Ver Pacotes'),
+            )
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,9 +158,10 @@ class _InitScreenState extends State<InitScreen> {
       body: Builder(builder: (ctx) {
         final selectedCountry =
             Provider.of<AuthProvider>(ctx).selectedCountryId;
+        final child = _pageForIndex(ctx, currentSelectedIndex);
         return KeyedSubtree(
           key: ValueKey('${currentSelectedIndex}_\$selectedCountry'),
-          child: pages[currentSelectedIndex],
+          child: child,
         );
       }),
       bottomNavigationBar: BottomNavigationBar(
@@ -164,5 +223,33 @@ class _InitScreenState extends State<InitScreen> {
         ],
       ),
     );
+  }
+
+  Widget _pageForIndex(BuildContext context, int index) {
+    final auth = Provider.of<AuthProvider>(context);
+    final user = auth.user;
+    final has = _hasPacoteIds(user);
+
+    // Block access to configured tab indices when user has no pacoteIds
+    if (!has && blockedTabIndicesWhenNoPacote.contains(index)) {
+      final title =
+          index == 0 ? 'Vídeos indisponíveis' : 'Conteúdo indisponível';
+      return _accessBlockedPlaceholder(context, title);
+    }
+
+    // otherwise return the normal page
+    switch (index) {
+      case 0:
+        return const VideoFeedScreen();
+      case 1:
+        return const PacoteScreen();
+      case 2:
+        return SubscricaoScreen(initialPacote: widget.initialPacote);
+      case 3:
+        return const PdfViewerTestScreen();
+      case 4:
+      default:
+        return const ProfileScreen();
+    }
   }
 }

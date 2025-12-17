@@ -31,23 +31,8 @@ class SignUpScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   const SignUpForm(),
                   const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SocalCard(
-                        icon: "assets/icons/google-icon.svg",
-                        press: () {},
-                      ),
-                      SocalCard(
-                        icon: "assets/icons/facebook-2.svg",
-                        press: () {},
-                      ),
-                      SocalCard(
-                        icon: "assets/icons/twitter.svg",
-                        press: () {},
-                      ),
-                    ],
-                  ),
+                  // Social icons hidden (not available)
+                  const SizedBox.shrink(),
                   const SizedBox(height: 16),
                   Text(
                     'Ao continuar confirma que concorda\ncom os nossos Termos e Condições',

@@ -40,6 +40,9 @@ class _SignUpFormState extends State<SignUpForm> {
     // Ensure loading flag is false by default and fetch tipos
     isLoading = false;
     debugPrint('SignUpForm.initState isLoading=$isLoading');
+    // default tipo_user_id as requested
+    tipoUserId = 3;
+    // keep fetch for compatibility but not required
     _fetchTiposUser();
   }
 
@@ -208,23 +211,7 @@ class _SignUpFormState extends State<SignUpForm> {
           FormError(errors: errors),
           const SizedBox(height: 16),
 
-          // Tipo user select
-          DropdownButtonFormField<int>(
-            value: tipoUserId,
-            items: tiposUser
-                .map((t) => DropdownMenuItem<int>(
-                      value: t['id'] is int
-                          ? t['id'] as int
-                          : int.parse(t['id'].toString()),
-                      child: Text(t['designacao']?.toString() ??
-                          t['name']?.toString() ??
-                          'Tipo'),
-                    ))
-                .toList(),
-            onChanged: (v) => setState(() => tipoUserId = v),
-            decoration: const InputDecoration(labelText: 'Tipo Utilizador'),
-          ),
-          const SizedBox(height: 12),
+          // Tipo user selection removed — default applied
 
           // Codigo Afilhao
           TextFormField(

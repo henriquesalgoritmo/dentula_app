@@ -94,57 +94,82 @@ class _CreateConversationScreenState extends State<CreateConversationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Nova Conversa')),
-      body: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'Título'),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Título requerido' : null,
-                onSaved: (v) => title = v!.trim(),
-              ),
-              TextFormField(
-                decoration:
-                    const InputDecoration(labelText: 'Descrição (opcional)'),
-                onSaved: (v) => description = v?.trim() ?? '',
-              ),
-              TextFormField(
-                decoration: const InputDecoration(
-                    labelText: 'Mensagem inicial (opcional)'),
-                onSaved: (v) => initialMessage = v?.trim() ?? '',
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: attachments
-                    .map((a) => Chip(
-                        label: Text(a.name),
-                        onDeleted: () => setState(() => attachments.remove(a))))
-                    .toList(),
-              ),
-              Row(
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: Scaffold(
+          appBar: AppBar(title: const Text('Nova Conversa')),
+          body: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
                 children: [
-                  ElevatedButton.icon(
-                      onPressed: pickFiles,
-                      icon: const Icon(Icons.attach_file),
-                      label: const Text('Anexar')),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: sending ? null : submit,
-                      child: sending
-                          ? const CircularProgressIndicator()
-                          : const Text('Criar'),
-                    ),
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: 'Título'),
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? 'Título requerido'
+                        : null,
+                    onSaved: (v) => title = v!.trim(),
                   ),
+                  TextFormField(
+                    decoration: const InputDecoration(
+                        labelText: 'Descrição (opcional)'),
+                    onSaved: (v) => description = v?.trim() ?? '',
+                  ),
+                  TextFormField(
+                    decoration: const InputDecoration(
+                        labelText: 'Mensagem inicial (opcional)'),
+                    onSaved: (v) => initialMessage = v?.trim() ?? '',
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: attachments
+                        .map((a) => Chip(
+                            label: Text(a.name),
+                            onDeleted: () =>
+                                setState(() => attachments.remove(a))))
+                        .toList(),
+                  ),
+                  LayoutBuilder(builder: (context, constraints) {
+                    final maxW = constraints.maxWidth.isFinite
+                        ? constraints.maxWidth
+                        : MediaQuery.of(context).size.width;
+                    // reserve ~120 for the icon button and spacing
+                    final buttonWidth = (maxW - 120).clamp(80.0, maxW);
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                                minimumSize: const Size(100, 40)),
+                            onPressed: pickFiles,
+                            icon: const Icon(Icons.attach_file),
+                            label: const Text('Anexar')),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: buttonWidth,
+                          child: ElevatedButton(
+                            onPressed: sending ? null : submit,
+                            child: sending
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text('Criar'),
+                          ),
+                        ),
+                      ],
+                    );
+                  })
                 ],
-              )
-            ],
+              ),
+            ),
           ),
         ),
       ),

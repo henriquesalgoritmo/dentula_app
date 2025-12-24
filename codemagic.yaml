@@ -1,26 +1,21 @@
 workflows:
-  android_aab:
-    name: Build Android AAB (Flutter 3.22.3, Java 17)
+  build-android-apk:
+    name: Build Android APK (Flutter 3.38.5)
     environment:
-      flutter: 3.22.3
+      flutter: "3.38.5"
       java: 17
-
     scripts:
       - name: Flutter version
-        script: |
-          flutter --version
+        script: flutter --version
 
-      - name: Clean project
-        script: |
-          flutter clean
+      - name: Clean
+        script: flutter clean
 
       - name: Get dependencies
-        script: |
-          flutter pub get
+        script: flutter pub get
 
-      - name: Build Android App Bundle (release)
-        script: |
-          flutter build appbundle --release --no-shrink
+      - name: Build APK (release)
+        script: flutter build apk --release --no-shrink
 
     artifacts:
-      - build/app/outputs/bundle/release/app-release.aab
+      - build/app/outputs/flutter-apk/app-release.apk

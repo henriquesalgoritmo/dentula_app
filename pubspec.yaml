@@ -35,7 +35,7 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
-  flutter_svg: ^0.23.0+1 # help us to use SVG in our app
+  flutter_svg: ^2.0.9 # help us to use SVG in our app
   provider: ^6.1.1 # for State management
   flutter_hot_reload: ^0.1.0
   http: ^0.13.6
@@ -43,7 +43,7 @@ dependencies:
   shared_preferences: ^2.0.15
   flutter_secure_storage: ^8.0.0
   photo_view: ^0.15.0
-  video_player: ^2.8.2
+  video_player: ^2.10.1
   url_launcher: ^6.1.10
   pdfx: ^2.4.2
   just_audio: ^0.9.34
@@ -51,7 +51,7 @@ dependencies:
   path_provider: ^2.0.15
   path: ^1.8.3
   intl: ^0.18.0
-  flutter_html: ^2.2.1
+  flutter_html: ^3.0.0
   # removed video_player_web_hls to avoid web build conflicts; using video_player + hls.js in web/index.html
 
 dev_dependencies:

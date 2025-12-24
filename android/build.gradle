@@ -1,15 +1,16 @@
 buildscript {
     ext.kotlin_version = '1.9.24'
+
     repositories {
         google()
         mavenCentral()
     }
+
     dependencies {
         classpath 'com.android.tools.build:gradle:8.2.2'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
-
 
 allprojects {
     repositories {
@@ -18,11 +19,24 @@ allprojects {
     }
 }
 
+/*
+ * FORÇA a versão do Kotlin para TODOS os módulos
+ * (incluindo plugins internos do Flutter)
+ */
+subprojects {
+    configurations.all {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'org.jetbrains.kotlin') {
+                details.useVersion kotlin_version
+            }
+        }
+    }
+}
+
 rootProject.buildDir = '../build'
+
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
-}
-subprojects {
     project.evaluationDependsOn(':app')
 }
 

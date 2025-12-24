@@ -427,8 +427,45 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                           try {
                             final result = await openFiles();
                             if (result.isNotEmpty) {
+                              // filter accepted extensions and size <= 3MB
+                              final allowed = [
+                                'pdf',
+                                'jpg',
+                                'jpeg',
+                                'png',
+                                'gif',
+                                'webp'
+                              ];
+                              final filtered = <XFile>[];
+                              for (final f in result) {
+                                try {
+                                  final len = await f.length();
+                                  final ext =
+                                      f.name.split('.').last.toLowerCase();
+                                  if (!allowed.contains(ext)) {
+                                    if (mounted)
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(SnackBar(
+                                              content: Text(
+                                                  'Ficheiro ${f.name} não suportado (apenas PDF/imagem).')));
+                                    continue;
+                                  }
+                                  if (len > 3 * 1024 * 1024) {
+                                    if (mounted)
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(SnackBar(
+                                              content: Text(
+                                                  'Ficheiro ${f.name} excede 3MB e foi ignorado.')));
+                                    continue;
+                                  }
+                                  filtered.add(f);
+                                } catch (_) {
+                                  // if length check fails, still add and let server validate
+                                  filtered.add(f);
+                                }
+                              }
                               setStateDialog(() {
-                                selectedFiles = result;
+                                selectedFiles = filtered;
                               });
                             }
                           } catch (e) {
@@ -498,6 +535,24 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
 
                     for (final file in selectedFiles) {
                       try {
+                        final ext = file.name.split('.').last.toLowerCase();
+                        final allowed = [
+                          'pdf',
+                          'jpg',
+                          'jpeg',
+                          'png',
+                          'gif',
+                          'webp'
+                        ];
+                        final len = await file.length();
+                        if (!allowed.contains(ext) || len > 3 * 1024 * 1024) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text(
+                                    'Ignorado ${file.name}: tipo não suportado ou tamanho > 3MB')));
+                          }
+                          continue;
+                        }
                         if (kIsWeb) {
                           final bytes = await file.readAsBytes();
                           request.files.add(http.MultipartFile.fromBytes(
@@ -508,7 +563,10 @@ class _SubscricaoScreenState extends State<SubscricaoScreen> {
                               'files[]', file.path,
                               filename: file.name));
                         }
-                      } catch (_) {}
+                      } catch (e) {
+                        // skip problematic file
+                        if (mounted) debugPrint('skip file ${file.name}: $e');
+                      }
                     }
 
                     final streamed = await request.send();

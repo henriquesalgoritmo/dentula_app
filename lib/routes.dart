@@ -10,6 +10,7 @@ import 'screens/forgot_password/forgot_password_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/init_screen.dart';
 import 'screens/login_success/login_success_screen.dart';
+import 'screens/hls_player/hls_player_screen.dart';
 import 'screens/otp/otp_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/sign_in/sign_in_screen.dart';
@@ -17,6 +18,7 @@ import 'screens/sign_up/sign_up_screen.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/loading/loading_screen.dart';
 import 'screens/video_feed/video_feed_screen.dart';
+import 'screens/coordenada/coordenada_screen.dart';
 
 // We use name route
 // All our routes will be available here
@@ -33,27 +35,33 @@ final Map<String, WidgetBuilder> routes = {
   // Protected routes: check auth state and redirect to SignIn if not logged
   HomeScreen.routeName: (context) {
     final auth = Provider.of<AuthProvider>(context);
-    return auth.isLoggedIn ? const HomeScreen() : const SignInScreen();
+    return auth.isLoggedIn ? const HomeScreen() : const SplashScreen();
   },
   ProductsScreen.routeName: (context) {
     final auth = Provider.of<AuthProvider>(context);
-    return auth.isLoggedIn ? const ProductsScreen() : const SignInScreen();
+    return auth.isLoggedIn ? const ProductsScreen() : const SplashScreen();
   },
   DetailsScreen.routeName: (context) {
     final auth = Provider.of<AuthProvider>(context);
-    return auth.isLoggedIn ? const DetailsScreen() : const SignInScreen();
+    return auth.isLoggedIn ? const DetailsScreen() : const SplashScreen();
   },
   CartScreen.routeName: (context) {
     final auth = Provider.of<AuthProvider>(context);
-    return auth.isLoggedIn ? const CartScreen() : const SignInScreen();
+    return auth.isLoggedIn ? const CartScreen() : const SplashScreen();
   },
   ProfileScreen.routeName: (context) {
     final auth = Provider.of<AuthProvider>(context);
-    return auth.isLoggedIn ? const ProfileScreen() : const SignInScreen();
+    return auth.isLoggedIn ? const ProfileScreen() : const SplashScreen();
   },
   // Video feed (TikTok-like)
   VideoFeedScreen.routeName: (context) {
     final auth = Provider.of<AuthProvider>(context);
-    return auth.isLoggedIn ? const VideoFeedScreen() : const SignInScreen();
+    return auth.isLoggedIn ? const VideoFeedScreen() : const SplashScreen();
+  },
+  // HLS demo player (accessible without auth)
+  HlsPlayerScreen.routeName: (context) => const HlsPlayerScreen(),
+  CoordenadaScreen.routeName: (context) {
+    final auth = Provider.of<AuthProvider>(context);
+    return auth.isLoggedIn ? const CoordenadaScreen() : const SplashScreen();
   },
 };

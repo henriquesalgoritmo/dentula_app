@@ -12,5 +12,5 @@ const Set<String> blockedRoutesWhenNoPacote = {
 /// `pacoteIds` value. Keep in sync with the `pages` order in `InitScreen`.
 const Set<int> blockedTabIndicesWhenNoPacote = {
   0, // Videos
-  3, // PDFs
+  4, // PDFs (updated after inserting Coordenadas tab)
 };

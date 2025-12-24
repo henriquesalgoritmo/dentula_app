@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../api_config.dart';
 import 'package:shop_app/providers/auth_provider.dart';
 import 'package:shop_app/screens/verification/verification_screen.dart';
 import 'package:shop_app/constants.dart';
 import 'package:shop_app/screens/favorite/favorite_screen.dart';
 import 'package:shop_app/screens/home/home_screen.dart';
 import 'package:shop_app/screens/pacote/pacote_screen.dart';
+import 'package:shop_app/screens/coordenada/coordenada_screen.dart';
 import 'package:shop_app/screens/subscricao/subscricao_screen.dart';
 import 'package:shop_app/screens/pdf_viewer/pdf_viewer_test_screen.dart';
 import 'package:shop_app/screens/profile/profile_screen.dart';
@@ -30,6 +34,16 @@ class InitScreen extends StatefulWidget {
 
 class _InitScreenState extends State<InitScreen> {
   int currentSelectedIndex = 0;
+  bool _initialIndexApplied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialIndex != null) {
+      currentSelectedIndex = widget.initialIndex!;
+      _initialIndexApplied = true;
+    }
+  }
 
   void updateCurrentIndex(int index) {
     setState(() {
@@ -40,6 +54,7 @@ class _InitScreenState extends State<InitScreen> {
   List<Widget> get pages => [
         const VideoFeedScreen(),
         const PacoteScreen(),
+        const CoordenadaScreen(),
         SubscricaoScreen(initialPacote: widget.initialPacote),
         const PdfViewerTestScreen(),
         const ContactListScreen(),
@@ -90,17 +105,85 @@ class _InitScreenState extends State<InitScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                // switch to the Pacotes tab instead of pushing a new page
-                updateCurrentIndex(1);
-              },
-              child: const Text('Ver Pacotes'),
+            // Use Wrap instead of Row to avoid unbounded width errors
+            Wrap(
+              spacing: 16,
+              alignment: WrapAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    // switch to the Pacotes tab instead of pushing a new page
+                    updateCurrentIndex(1);
+                  },
+                  child: const Text('Ver Pacotes'),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 24.0),
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      await _reloadUserData(context);
+                    },
+                    child: const Text('Carregar os dados'),
+                  ),
+                ),
+              ],
             )
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _reloadUserData(BuildContext ctx) async {
+    final auth = Provider.of<AuthProvider>(ctx, listen: false);
+    final token = auth.token;
+    if (token == null || token.isEmpty) {
+      if (ctx.mounted)
+        ScaffoldMessenger.of(ctx)
+            .showSnackBar(const SnackBar(content: Text('Não autenticado')));
+      return;
+    }
+    try {
+      final uri = Uri.parse('${getApiBaseUrl()}user');
+      final resp = await http.get(uri, headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token'
+      }).timeout(const Duration(seconds: 15));
+      // Log response for debugging when user clicks "Carregar os dados"
+      try {
+        debugPrint('[_reloadUserData] GET $uri');
+        debugPrint('[_reloadUserData] status: ${resp.statusCode}');
+        debugPrint('[_reloadUserData] body: ${resp.body}');
+      } catch (e) {
+        debugPrint('[_reloadUserData] debug print failed: $e');
+      }
+      if (resp.statusCode == 200) {
+        final decoded = jsonDecode(resp.body);
+        await auth.updateUser(decoded as Map<String, dynamic>?);
+        if (ctx.mounted) {
+          ScaffoldMessenger.of(ctx).showSnackBar(
+              const SnackBar(content: Text('Dados do utilizador atualizados')));
+        }
+        // force rebuild of this screen to re-evaluate pacoteIds
+        final nowHas = _hasPacoteIds(auth.user);
+        if (nowHas &&
+            blockedTabIndicesWhenNoPacote.contains(currentSelectedIndex)) {
+          // user gained pacoteIds — trigger rebuild so _pageForIndex will return the real page
+          if (mounted) setState(() {});
+        } else {
+          // still no pacoteIds or not blocked - just rebuild UI to reflect updated user
+          if (mounted) setState(() {});
+        }
+      } else {
+        if (ctx.mounted)
+          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+              content: Text('Falha a recarregar: HTTP ${resp.statusCode}')));
+      }
+    } catch (e) {
+      if (ctx.mounted)
+        ScaffoldMessenger.of(ctx)
+            .showSnackBar(SnackBar(content: Text('Erro ao recarregar: $e')));
+    }
   }
 
   @override
@@ -139,10 +222,7 @@ class _InitScreenState extends State<InitScreen> {
         // ignore errors here
       }
     });
-    // apply initial index once
-    if (currentSelectedIndex == 0 && widget.initialIndex != null) {
-      currentSelectedIndex = widget.initialIndex!;
-    }
+    // initialIndex is applied in initState to avoid repeatedly forcing it
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(80),
@@ -194,6 +274,11 @@ class _InitScreenState extends State<InitScreen> {
               ),
             ),
             label: "Pacotes",
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.account_balance, color: inActiveIconColor),
+            activeIcon: Icon(Icons.account_balance, color: kPrimaryColor),
+            label: "Coordenadas",
           ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.receipt_long, color: inActiveIconColor),
@@ -252,12 +337,14 @@ class _InitScreenState extends State<InitScreen> {
       case 1:
         return const PacoteScreen();
       case 2:
-        return SubscricaoScreen(initialPacote: widget.initialPacote);
+        return const CoordenadaScreen();
       case 3:
-        return const PdfViewerTestScreen();
+        return SubscricaoScreen(initialPacote: widget.initialPacote);
       case 4:
-        return const ContactListScreen();
+        return const PdfViewerTestScreen();
       case 5:
+        return const ContactListScreen();
+      case 6:
       default:
         return const ProfileScreen();
     }

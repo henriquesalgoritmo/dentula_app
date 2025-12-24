@@ -8,7 +8,7 @@ import 'package:flutter/foundation.dart'
 /// - Web: uses `http://localhost:8000/api/` by default.
 String getApiBaseUrl() {
   // You can change the port/path here if your backend uses a different one.
-  const apiPath = 'http://localhost:8000/api/';
+  const apiPath = 'https://api.myvisto.dentula.ao/api/';
 
   if (kIsWeb) return apiPath;
 

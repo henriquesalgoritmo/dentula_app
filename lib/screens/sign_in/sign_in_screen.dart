@@ -22,6 +22,14 @@ class SignInScreen extends StatelessWidget {
             child: SingleChildScrollView(
               child: Column(
                 children: [
+                  const SizedBox(height: 40),
+                  Center(
+                    child: Image.asset(
+                      'assets/images/logoMyVisto.png',
+                      height: 120,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   const Text(
                     "Bem-vindo de volta",
@@ -37,6 +45,8 @@ class SignInScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   const SignForm(),
+                  const SizedBox(height: 12),
+                  // HLS demo button removed
                   const SizedBox(height: 16),
                   // Redes sociais ocultas
                   const SizedBox.shrink(),

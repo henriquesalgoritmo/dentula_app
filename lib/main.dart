@@ -6,6 +6,8 @@ import 'theme.dart';
 import 'providers/auth_provider.dart';
 import 'navigation_service.dart';
 import 'route_guard.dart';
+import 'screens/home/home_screen.dart';
+import 'screens/splash/splash_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,13 +25,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context);
+    final String initial =
+        auth.isLoggedIn ? HomeScreen.routeName : SplashScreen.routeName;
+
     return MaterialApp(
       navigatorKey: navigatorKey,
       navigatorObservers: [routeObserver],
       debugShowCheckedModeBanner: false,
       title: 'The Flutter Way - Template',
       theme: AppTheme.lightTheme(context),
-      initialRoute: '/loading',
+      initialRoute: initial,
       onGenerateRoute: generateRoute,
       // keep routes map as fallback for named routes resolution inside generator
       routes: routes,

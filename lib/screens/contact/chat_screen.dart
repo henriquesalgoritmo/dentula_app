@@ -29,6 +29,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool loading = false;
   final _controller = TextEditingController();
   List<XFile> attachments = [];
+  static const int _maxFileBytes = 30 * 1024 * 1024; // 30 MB
 
   Future<Map<String, String>> _authHeaders() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -85,7 +86,32 @@ class _ChatScreenState extends State<ChatScreen> {
     final files = await openFiles(acceptedTypeGroups: [
       XTypeGroup(label: 'files', extensions: ['jpg', 'png', 'jpeg', 'pdf'])
     ]);
-    if (files.isNotEmpty) setState(() => attachments.addAll(files));
+    if (files.isEmpty) return;
+    final accepted = <XFile>[];
+    final rejected = <String>[];
+    for (var f in files) {
+      try {
+        int size = 0;
+        if (!kIsWeb && f.path.isNotEmpty) {
+          size = await File(f.path).length();
+        } else {
+          final bytes = await f.readAsBytes();
+          size = bytes.length;
+        }
+        if (size <= _maxFileBytes)
+          accepted.add(f);
+        else
+          rejected.add(f.name);
+      } catch (e) {
+        rejected.add(f.name);
+      }
+    }
+    if (accepted.isNotEmpty) setState(() => attachments.addAll(accepted));
+    if (rejected.isNotEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Ficheiros maiores que 30MB foram ignorados: ${rejected.join(', ')}')));
+    }
   }
 
   Future<void> sendMessage() async {
@@ -100,6 +126,29 @@ class _ChatScreenState extends State<ChatScreen> {
       final request = http.MultipartRequest('POST', uri);
       request.headers.addAll(headers);
       if (text.isNotEmpty) request.fields['content'] = text;
+
+      // validate attachments sizes again before sending
+      for (var f in attachments) {
+        int size = 0;
+        if (!kIsWeb && f.path.isNotEmpty) {
+          try {
+            size = await File(f.path).length();
+          } catch (_) {
+            // fallback to readAsBytes
+            final bytes = await f.readAsBytes();
+            size = bytes.length;
+          }
+        } else {
+          final bytes = await f.readAsBytes();
+          size = bytes.length;
+        }
+        if (size > _maxFileBytes) {
+          if (mounted)
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Um ou mais ficheiros excedem 30MB.')));
+          return;
+        }
+      }
 
       for (var f in attachments) {
         if (!kIsWeb && f.path.isNotEmpty) {

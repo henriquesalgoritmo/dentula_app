@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:video_player/video_player.dart';
 import 'package:http/http.dart' as http;
 
@@ -9,7 +10,7 @@ import '../../navigation_service.dart';
 
 class VideoFeedScreen extends StatefulWidget {
   final int idPlaylist;
-  const VideoFeedScreen({Key? key, this.idPlaylist = 1}) : super(key: key);
+  const VideoFeedScreen({Key? key, this.idPlaylist = 0}) : super(key: key);
 
   static const String routeName = '/video-feed';
 
@@ -155,6 +156,18 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> with RouteAware {
             .map((e) => Map<String, dynamic>.from(e))
             .toList();
         debugPrint('video feed parsed items count: ${items.length}');
+        // Print full file URL for each item for easier debugging in terminal
+        for (var i = 0; i < items.length; i++) {
+          try {
+            final it = items[i];
+            final path = (it['path'] ?? '').toString();
+            final url = _buildFileUrl(path);
+            debugPrint(
+                'video[$i] id=${it['id']} title=${it['titulo'] ?? ''} url=$url');
+          } catch (e) {
+            debugPrint('video print error for index $i: $e');
+          }
+        }
         if (items.isNotEmpty) {
           final route = ModalRoute.of(context);
           if (route != null && route.isCurrent) {
@@ -182,102 +195,55 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> with RouteAware {
       // If we already have the controller for this index, nothing to do
       if (_controllerIndex == idx && _controller != null) return;
 
-      // If nextController was preloaded for this index, promote it
-      if (_nextController != null && _nextControllerIndex == idx) {
-        debugPrint('Promoting preloaded controller for $idx');
+      // Always initialize only the controller for the active index.
+      // Dispose any existing controller first to free resources.
+      try {
+        await _controller?.pause();
+      } catch (_) {}
+      try {
+        await _controller?.dispose();
+      } catch (_) {}
+      _controller = null;
+      _controllerIndex = null;
+
+      final item = items[idx];
+      final path = (item['path'] ?? '').toString();
+
+      // Construct HLS playlist URL and use it exclusively
+      String hlsUrl = '';
+      try {
+        final parts = path.split('/').last.split('.');
+        if (parts.isNotEmpty) {
+          final fileName = parts.sublist(0, parts.length - 1).join('.');
+          final base = getApiBaseUrl().replaceAll(RegExp(r'/$'), '');
+          hlsUrl = '$base/hls/$fileName/playlist.m3u8';
+        }
+      } catch (_) {}
+
+      debugPrint('video init (active only): hls url=$hlsUrl');
+
+      if (hlsUrl.isEmpty) return;
+
+      final chosenUrl = hlsUrl;
+
+      final isHls = chosenUrl.toLowerCase().endsWith('.m3u8');
+      if (isHls) debugPrint('HLS stream detected for $chosenUrl');
+
+      _controller = VideoPlayerController.network(chosenUrl)..setLooping(true);
+      try {
+        await _controller!.initialize();
         try {
-          await _controller?.pause();
+          _controller!.addListener(_onControllerUpdate);
         } catch (_) {}
         try {
-          await _controller?.dispose();
+          _controller!.setVolume(_isMuted ? 0.0 : 1.0);
         } catch (_) {}
-        _controller = _nextController;
-        _controllerIndex = _nextControllerIndex;
-        _nextController = null;
-        _nextControllerIndex = null;
         if (!mounted) return;
+        _controllerIndex = idx;
         setState(() {});
-        try {
-          await _controller!.play();
-        } catch (e) {
-          debugPrint('play error after promote: $e');
-        }
-      } else {
-        // Normal init: dispose current and create new
-        try {
-          await _controller?.pause();
-        } catch (_) {}
-        try {
-          await _controller?.dispose();
-        } catch (_) {}
-        _controller = null;
-        _controllerIndex = null;
-
-        final item = items[idx];
-        final path = (item['path'] ?? '').toString();
-        final url = _buildFileUrl(path);
-        if (url.isEmpty) return;
-
-        final isHls = url.toLowerCase().endsWith('.m3u8');
-        if (isHls) debugPrint('HLS stream detected for $url');
-
-        _controller = VideoPlayerController.network(url)..setLooping(true);
-        try {
-          await _controller!.initialize();
-          // ensure listener and volume
-          try {
-            _controller!.addListener(_onControllerUpdate);
-          } catch (_) {}
-          try {
-            _controller!.setVolume(_isMuted ? 0.0 : 1.0);
-          } catch (_) {}
-          if (!mounted) return;
-          _controllerIndex = idx;
-          setState(() {});
-          await _controller!.play();
-        } catch (e) {
-          debugPrint('video init error: $e');
-        }
-      }
-
-      // Preload next item to smooth transitions
-      final nextIdx = idx + 1;
-      if (nextIdx < items.length) {
-        if (_nextControllerIndex == nextIdx && _nextController != null) {
-          // already preloaded
-        } else {
-          // dispose old next
-          try {
-            await _nextController?.dispose();
-          } catch (_) {}
-          _nextController = null;
-          _nextControllerIndex = null;
-
-          final nextItem = items[nextIdx];
-          final nextPath = (nextItem['path'] ?? '').toString();
-          final nextUrl = _buildFileUrl(nextPath);
-          if (nextUrl.isNotEmpty) {
-            debugPrint('Preloading next index $nextIdx');
-            _nextController = VideoPlayerController.network(nextUrl)
-              ..setLooping(true);
-            try {
-              await _nextController!.initialize();
-              try {
-                _nextController!.addListener(_onControllerUpdate);
-              } catch (_) {}
-              _nextControllerIndex = nextIdx;
-              // do not autoplay preloaded
-              debugPrint('Preloaded next $nextIdx');
-            } catch (e) {
-              debugPrint('preload error: $e');
-              try {
-                await _nextController?.dispose();
-              } catch (_) {}
-              _nextController = null;
-              _nextControllerIndex = null;
-            }
-          }
-        }
+        await _controller!.play();
+      } catch (e) {
+        debugPrint('video init error: $e');
       }
     } finally {
       _isInitializing = false;
@@ -396,43 +362,9 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> with RouteAware {
                             ),
                           ),
 
-                          // Top overlay (title/desc)
-                          Positioned(
-                            top: MediaQuery.of(context).padding.top + 8,
-                            left: 12,
-                            right: 100,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(title,
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 6),
-                                Text(description,
-                                    style:
-                                        const TextStyle(color: Colors.white70),
-                                    overflow: TextOverflow.ellipsis),
-                              ],
-                            ),
-                          ),
+                          // (Title/description moved below controls)
 
-                          // Top-right label for type
-                          Positioned(
-                            top: MediaQuery.of(context).padding.top + 12,
-                            right: 12,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                  color: Colors.black45,
-                                  borderRadius: BorderRadius.circular(12)),
-                              child: const Text('VÍDEO',
-                                  style: TextStyle(
-                                      color: Colors.white, fontSize: 12)),
-                            ),
-                          ),
+                          // (Type label moved below controls)
 
                           // Bottom progress bar and controls
                           if (isActive &&
@@ -496,7 +428,45 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> with RouteAware {
                                         },
                                       ),
                                     ],
-                                  )
+                                  ),
+                                  const SizedBox(height: 8),
+                                  // Black info bar: type (left) + title (left)
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                        color: Colors.black45,
+                                        borderRadius: BorderRadius.circular(8)),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                              color: Colors.black38,
+                                              borderRadius:
+                                                  BorderRadius.circular(8)),
+                                          child: Text(
+                                              isVideo ? 'VÍDEO' : 'ÁUDIO',
+                                              style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12)),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(title,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold)),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),

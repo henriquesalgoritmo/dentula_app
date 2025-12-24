@@ -1,8 +1,8 @@
 workflows:
   android_aab:
-    name: Build Android AAB (Flutter stable, Java 17)
+    name: Build Android AAB (Flutter 3.22.3, Java 17)
     environment:
-      flutter: stable
+      flutter: 3.22.3
       java: 17
 
     scripts:

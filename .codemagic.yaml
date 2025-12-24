@@ -1,14 +1,22 @@
 workflows:
-  build-apk:
-    name: Build APK (skip analyze)
+  build-android-aab:
+    name: Build Android AAB (skip analyze)
     environment:
-      flutter: stable
+      flutter: latest
     scripts:
+      - name: Ensure Flutter & Java
+        script: |
+          set -e
+          flutter channel stable
+          flutter upgrade --force
+          flutter --version
+          echo "JAVA_HOME=$JAVA_HOME"
+          java -version || true
       - name: Install dependencies
         script: |
           flutter pub get
-      - name: Build release APK
+      - name: Build app bundle (release)
         script: |
-          flutter build apk --release
+          flutter build appbundle --release
     artifacts:
-      - build/app/outputs/flutter-apk/app-release.apk
+      - build/app/outputs/bundle/release/app-release.aab

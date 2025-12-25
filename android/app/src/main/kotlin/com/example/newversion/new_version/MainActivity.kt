@@ -1,4 +1,4 @@
-package com.example.newversion.new_version
+package com.example.newversion.MyVisto
 
 import io.flutter.embedding.android.FlutterActivity
 

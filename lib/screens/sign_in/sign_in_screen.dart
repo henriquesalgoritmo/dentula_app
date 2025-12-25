@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 
 import '../../components/no_account_text.dart';
 import '../../components/socal_card.dart';
@@ -10,9 +12,11 @@ class SignInScreen extends StatelessWidget {
   const SignInScreen({super.key});
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text("Iniciar sessão"),
+        automaticallyImplyLeading: !auth.isLoggedIn,
       ),
       body: SafeArea(
         child: SizedBox(

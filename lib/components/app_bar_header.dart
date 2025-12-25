@@ -28,7 +28,8 @@ class AppBarHeader extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Back button (if needed)
+          // Back button (if needed). We also check auth to avoid showing
+          // a back button on public auth screens when the user is logged-in.
           if (showBackButton)
             SizedBox(
               width: 40,

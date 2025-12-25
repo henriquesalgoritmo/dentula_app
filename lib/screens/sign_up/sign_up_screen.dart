@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../components/socal_card.dart';
 import '../../constants.dart';
 import 'components/sign_up_form.dart';
+import '../../providers/auth_provider.dart';
 
 class SignUpScreen extends StatelessWidget {
   static String routeName = "/sign_up";
@@ -10,9 +12,11 @@ class SignUpScreen extends StatelessWidget {
   const SignUpScreen({super.key});
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text("Registar"),
+        automaticallyImplyLeading: !auth.isLoggedIn,
       ),
       body: SafeArea(
         child: SizedBox(

@@ -13,14 +13,18 @@ Route<dynamic>? generateRoute(RouteSettings settings) {
   // resolve builder from the existing routes map
   final builder = app_routes.routes[settings.name];
 
-  // Determine if route is protected
-  const protected = <String>{
+  // Define explicitly public (unauthenticated) routes. All other routes
+  // require authentication and will be redirected to SignIn when not logged.
+  const publicRoutes = <String>{
     '/',
-    '/profile',
-    '/home',
-    '/products',
-    '/details',
-    '/cart',
+    '/loading',
+    '/init',
+    '/splash',
+    '/sign_in',
+    '/forgot_password',
+    '/sign_up',
+    '/login_success',
+    '/otp',
   };
 
   final ctx = navigatorKey.currentContext;
@@ -34,10 +38,29 @@ Route<dynamic>? generateRoute(RouteSettings settings) {
     }
   }
 
-  // If route is protected and user is not logged, redirect to SignInScreen
-  if (protected.contains(settings.name) && !loggedIn) {
+  // If the requested route is NOT public and the user is not logged-in,
+  // redirect to SignInScreen. This enforces auth checks consistently
+  // for any route access.
+  if (!publicRoutes.contains(settings.name) && !loggedIn) {
     return MaterialPageRoute(
         builder: (_) => const SignInScreen(), settings: settings);
+  }
+
+  // If the user is already logged-in and tries to open an authentication
+  // public page (sign in / sign up / forgot / splash), redirect to Home.
+  const authPublicPages = <String>{
+    '/sign_in',
+    '/sign_up',
+    '/forgot_password',
+    '/splash',
+  };
+  if (loggedIn && authPublicPages.contains(settings.name)) {
+    // Avoid importing HomeScreen here to keep this guard generic; use a
+    // lightweight redirect to InitScreen which is shown for logged users
+    // without pacote, otherwise the routes map will resolve Home when
+    // appropriate.
+    return MaterialPageRoute(
+        builder: (_) => const InitScreen(), settings: settings);
   }
 
   // Block routes that require a purchased pacote: if user is logged in but

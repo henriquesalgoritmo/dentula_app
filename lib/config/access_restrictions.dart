@@ -11,6 +11,6 @@ const Set<String> blockedRoutesWhenNoPacote = {
 /// the bottom-navigation indices that should be blocked when user has no
 /// `pacoteIds` value. Keep in sync with the `pages` order in `InitScreen`.
 const Set<int> blockedTabIndicesWhenNoPacote = {
-  0, // Videos
-  4, // PDFs (updated after inserting Coordenadas tab)
+  1, // Videos (now at index 1)
+  5, // PDFs (now at index 5)
 };

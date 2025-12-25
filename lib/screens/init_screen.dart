@@ -17,6 +17,7 @@ import 'package:shop_app/screens/profile/profile_screen.dart';
 import 'package:shop_app/screens/contact/contact_list_screen.dart';
 import 'package:shop_app/components/app_bar_header.dart';
 import 'package:shop_app/screens/video_feed/video_feed_screen.dart';
+import 'package:shop_app/screens/news/news_screen.dart';
 import '../config/access_restrictions.dart';
 
 const Color inActiveIconColor = Color(0xFFB6B6B6);
@@ -52,6 +53,7 @@ class _InitScreenState extends State<InitScreen> {
   }
 
   List<Widget> get pages => [
+        const NewsScreen(),
         const VideoFeedScreen(),
         const PacoteScreen(),
         const CoordenadaScreen(),
@@ -113,7 +115,7 @@ class _InitScreenState extends State<InitScreen> {
                 ElevatedButton(
                   onPressed: () {
                     // switch to the Pacotes tab instead of pushing a new page
-                    updateCurrentIndex(1);
+                    updateCurrentIndex(2);
                   },
                   child: const Text('Ver Pacotes'),
                 ),
@@ -254,9 +256,15 @@ class _InitScreenState extends State<InitScreen> {
         type: BottomNavigationBarType.fixed,
         items: [
           BottomNavigationBarItem(
-            icon: const Icon(Icons.video_library, color: inActiveIconColor),
-            activeIcon: const Icon(Icons.video_library, color: kPrimaryColor),
-            label: 'Videos',
+            icon: const Icon(Icons.article, color: inActiveIconColor),
+            activeIcon: const Icon(Icons.article, color: kPrimaryColor),
+            label: 'Notícias',
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.play_circle_fill, color: inActiveIconColor),
+            activeIcon:
+                const Icon(Icons.play_circle_fill, color: kPrimaryColor),
+            label: 'Vídeos',
           ),
           BottomNavigationBarItem(
             icon: SvgPicture.asset(
@@ -333,18 +341,20 @@ class _InitScreenState extends State<InitScreen> {
     // otherwise return the normal page
     switch (index) {
       case 0:
-        return const VideoFeedScreen();
+        return const NewsScreen();
       case 1:
-        return const PacoteScreen();
+        return const VideoFeedScreen();
       case 2:
-        return const CoordenadaScreen();
+        return const PacoteScreen();
       case 3:
-        return SubscricaoScreen(initialPacote: widget.initialPacote);
+        return const CoordenadaScreen();
       case 4:
-        return const PdfViewerTestScreen();
+        return SubscricaoScreen(initialPacote: widget.initialPacote);
       case 5:
-        return const ContactListScreen();
+        return const PdfViewerTestScreen();
       case 6:
+        return const ContactListScreen();
+      case 7:
       default:
         return const ProfileScreen();
     }

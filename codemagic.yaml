@@ -19,3 +19,27 @@ workflows:
 
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
+
+  build-ios:
+    name: Build iOS IPA (Flutter 3.38.5)
+    environment:
+      flutter: "3.38.5"
+      xcode: "14.1"
+    scripts:
+      - name: Flutter version
+        script: flutter --version
+
+      - name: Clean
+        script: flutter clean
+
+      - name: Get dependencies
+        script: flutter pub get
+
+      - name: Build IPA (release, no codesign)
+        script: flutter build ipa --release --no-codesign
+
+    # Note: building a signed IPA requires configuring code signing (certs +
+    # provisioning profiles) in Codemagic UI. This workflow produces an
+    # unsigned IPA which you can later sign or configure automatic signing.
+    artifacts:
+      - build/ios/ipa/*.ipa

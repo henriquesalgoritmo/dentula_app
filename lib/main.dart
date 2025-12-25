@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shop_app/screens/init_screen.dart';
 
 import 'routes.dart';
 import 'theme.dart';
@@ -27,7 +28,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
     final String initial =
-        auth.isLoggedIn ? HomeScreen.routeName : SplashScreen.routeName;
+        auth.isLoggedIn ? InitScreen.routeName : SplashScreen.routeName;
 
     return MaterialApp(
       navigatorKey: navigatorKey,

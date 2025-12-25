@@ -25,11 +25,23 @@ import 'screens/coordenada/coordenada_screen.dart';
 final Map<String, WidgetBuilder> routes = {
   LoadingScreen.routeName: (context) => const LoadingScreen(),
   InitScreen.routeName: (context) => const InitScreen(),
-  SplashScreen.routeName: (context) => const SplashScreen(),
-  SignInScreen.routeName: (context) => const SignInScreen(),
-  ForgotPasswordScreen.routeName: (context) => const ForgotPasswordScreen(),
+  SplashScreen.routeName: (context) {
+    final auth = Provider.of<AuthProvider>(context);
+    return auth.isLoggedIn ? const InitScreen() : const SplashScreen();
+  },
+  SignInScreen.routeName: (context) {
+    final auth = Provider.of<AuthProvider>(context);
+    return auth.isLoggedIn ? const InitScreen() : const SignInScreen();
+  },
+  ForgotPasswordScreen.routeName: (context) {
+    final auth = Provider.of<AuthProvider>(context);
+    return auth.isLoggedIn ? const InitScreen() : const ForgotPasswordScreen();
+  },
   LoginSuccessScreen.routeName: (context) => const LoginSuccessScreen(),
-  SignUpScreen.routeName: (context) => const SignUpScreen(),
+  SignUpScreen.routeName: (context) {
+    final auth = Provider.of<AuthProvider>(context);
+    return auth.isLoggedIn ? const InitScreen() : const SignUpScreen();
+  },
   CompleteProfileScreen.routeName: (context) => const CompleteProfileScreen(),
   OtpScreen.routeName: (context) => const OtpScreen(),
   // Protected routes: check auth state and redirect to SignIn if not logged

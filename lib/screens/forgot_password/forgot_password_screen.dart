@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'components/forgot_pass_form.dart';
+import '../../providers/auth_provider.dart';
 
 class ForgotPasswordScreen extends StatelessWidget {
   static String routeName = "/forgot_password";
@@ -8,9 +10,11 @@ class ForgotPasswordScreen extends StatelessWidget {
   const ForgotPasswordScreen({super.key});
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text("Recuperar palavra-passe"),
+        automaticallyImplyLeading: !auth.isLoggedIn,
       ),
       body: const SizedBox(
         width: double.infinity,

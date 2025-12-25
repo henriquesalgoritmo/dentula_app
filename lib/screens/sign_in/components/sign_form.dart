@@ -227,8 +227,10 @@ class _SignFormState extends State<SignForm> {
               tipo = int.tryParse(user['tipo_user_id'].toString()) ?? -1;
             } else if (user['tipo_user'] != null && user['tipo_user'] is Map) {
               final tu = Map<String, dynamic>.from(user['tipo_user']);
-              if (tu['id'] != null) tipo = int.tryParse(tu['id'].toString()) ?? -1;
-              else if (tu['tipo_user_id'] != null) tipo = int.tryParse(tu['tipo_user_id'].toString()) ?? -1;
+              if (tu['id'] != null)
+                tipo = int.tryParse(tu['id'].toString()) ?? -1;
+              else if (tu['tipo_user_id'] != null)
+                tipo = int.tryParse(tu['tipo_user_id'].toString()) ?? -1;
             } else if (user['tipo_user'] is int) {
               tipo = user['tipo_user'] as int;
             }
@@ -238,7 +240,8 @@ class _SignFormState extends State<SignForm> {
         }
 
         if (tipo != 3) {
-          scaffold.showSnackBar(const SnackBar(content: Text('Acesso não permitido neste app móvel.')));
+          scaffold.showSnackBar(const SnackBar(
+              content: Text('Acesso não permitido neste app móvel.')));
           // Do not persist token or user — return early.
           if (mounted) setState(() => isLoading = false);
           return;

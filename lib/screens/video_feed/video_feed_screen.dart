@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 
 import '../../api_config.dart';
 import '../../navigation_service.dart';
+import 'package:provider/provider.dart';
+import 'package:shop_app/providers/auth_provider.dart';
 
 class VideoFeedScreen extends StatefulWidget {
   final int idPlaylist;
@@ -21,6 +23,9 @@ class VideoFeedScreen extends StatefulWidget {
 class _VideoFeedScreenState extends State<VideoFeedScreen> with RouteAware {
   List<Map<String, dynamic>> items = [];
   bool loading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  int _page = 1;
   int currentIndex = 0;
   VideoPlayerController? _controller;
   int? _controllerIndex;
@@ -36,7 +41,7 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> with RouteAware {
   @override
   void initState() {
     super.initState();
-    _fetch();
+    _fetch(page: 1, append: false);
   }
 
   @override
@@ -138,10 +143,11 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> with RouteAware {
     return '$base/file/$idPart/$ext';
   }
 
-  Future<void> _fetch() async {
-    setState(() => loading = true);
+  Future<void> _fetch({int page = 1, bool append = false}) async {
+    if (!append) setState(() => loading = true);
     try {
-      final url = '${getApiBaseUrl()}conteudo-playlist/${widget.idPlaylist}';
+      final url =
+          '${getApiBaseUrl()}conteudo-playlist/${widget.idPlaylist}?page=$page';
       final resp = await http.get(Uri.parse(url));
       if (resp.statusCode == 200) {
         debugPrint('video feed response body: ${resp.body}');
@@ -149,12 +155,51 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> with RouteAware {
         List<dynamic> data = [];
         if (body is Map && body['data'] is List) data = body['data'];
         if (body is List) data = body;
-        items = data
+        final newItems = data
             .whereType<Map<String, dynamic>>()
             .where(
                 (e) => e['tipo_conteudo_id'] == 1 || e['tipo_conteudo_id'] == 2)
             .map((e) => Map<String, dynamic>.from(e))
             .toList();
+        if (append) {
+          // append while avoiding duplicates by id
+          final existingIds = items.map((e) => e['id']).toSet();
+          for (final it in newItems) {
+            if (!existingIds.contains(it['id'])) items.add(it);
+          }
+        } else {
+          items = newItems;
+        }
+        // determine pagination
+        try {
+          if (body is Map) {
+            if (body.containsKey('current_page') &&
+                body.containsKey('last_page')) {
+              final cur = int.tryParse(body['current_page'].toString()) ?? page;
+              final last = int.tryParse(body['last_page'].toString()) ?? cur;
+              _hasMore = cur < last;
+              _page = cur;
+            } else if (body.containsKey('next_page_url')) {
+              _hasMore = body['next_page_url'] != null;
+              // page remains as requested
+              _page = page;
+            } else if (body.containsKey('meta') &&
+                body['meta'] is Map &&
+                body['meta'].containsKey('last_page')) {
+              final cur = int.tryParse(body['current_page'].toString()) ?? page;
+              final last =
+                  int.tryParse(body['meta']['last_page'].toString()) ?? cur;
+              _hasMore = cur < last;
+              _page = cur;
+            } else {
+              // unknown format: if we received items, assume there may be more
+              _hasMore = newItems.isNotEmpty;
+              _page = page;
+            }
+          }
+        } catch (_) {
+          _hasMore = newItems.isNotEmpty;
+        }
         debugPrint('video feed parsed items count: ${items.length}');
         // Print full file URL for each item for easier debugging in terminal
         for (var i = 0; i < items.length; i++) {
@@ -171,7 +216,8 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> with RouteAware {
         if (items.isNotEmpty) {
           final route = ModalRoute.of(context);
           if (route != null && route.isCurrent) {
-            await _initControllerForIndex(0);
+            // initialize only if first page or not appending
+            if (!append) await _initControllerForIndex(0);
           } else {
             currentIndex = 0;
           }
@@ -180,8 +226,16 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> with RouteAware {
     } catch (e) {
       debugPrint('video feed fetch error: $e');
     } finally {
-      setState(() => loading = false);
+      if (!append) setState(() => loading = false);
+      if (append) setState(() => _isLoadingMore = false);
     }
+  }
+
+  Future<void> _loadNextPage() async {
+    if (!_hasMore || _isLoadingMore) return;
+    _isLoadingMore = true;
+    final next = _page + 1;
+    await _fetch(page: next, append: true);
   }
 
   Future<void> _initControllerForIndex(int idx) async {
@@ -207,6 +261,23 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> with RouteAware {
       _controllerIndex = null;
 
       final item = items[idx];
+      // Check access: if this content has associated pacotes and the current
+      // user does not own any of them, block initialization.
+      try {
+        final auth = Provider.of<AuthProvider>(context, listen: false);
+        final allowed = _userHasAccessForItem(item, auth);
+        if (!allowed) {
+          // mark blocked so UI can show overlay
+          items[idx]['_blocked'] = true;
+          if (mounted) setState(() {});
+          return;
+        } else {
+          items[idx]['_blocked'] = false;
+        }
+      } catch (_) {
+        // if anything goes wrong checking auth, default to not blocked
+        items[idx]['_blocked'] = false;
+      }
       final path = (item['path'] ?? '').toString();
 
       // Construct HLS playlist URL and use it exclusively
@@ -253,6 +324,64 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> with RouteAware {
   void _onPageChanged(int i) {
     setState(() => currentIndex = i);
     _initControllerForIndex(i);
+    // Prefetch next page when the user reaches the penultimate item
+    // (better UX than waiting for the absolute last item).
+    if (i >= items.length - 2 && _hasMore && !_isLoadingMore) {
+      _loadNextPage();
+    }
+  }
+
+  bool _userHasAccessForItem(Map<String, dynamic> item, AuthProvider auth) {
+    try {
+      // If content has no pacotes, it's public
+      final contentPacotes = <int>[];
+      if (item.containsKey('pacotes') && item['pacotes'] is List) {
+        for (final p in item['pacotes']) {
+          if (p is Map && p['id'] != null) {
+            final id = int.tryParse(p['id'].toString());
+            if (id != null) contentPacotes.add(id);
+          } else if (p is int) {
+            contentPacotes.add(p);
+          }
+        }
+      }
+
+      if (contentPacotes.isEmpty) return true;
+
+      // Get user pacote ids (try multiple shapes)
+      final user = auth.user;
+      final userPacoteIds = <int>[];
+      if (user != null) {
+        if (user is Map && user['pacoteIds'] != null) {
+          final pi = user['pacoteIds'];
+          if (pi is List) {
+            for (final v in pi) {
+              final id = int.tryParse(v.toString());
+              if (id != null) userPacoteIds.add(id);
+            }
+          } else if (pi is String) {
+            try {
+              final decoded = pi.startsWith('[') ? jsonDecode(pi) : null;
+              if (decoded is List) {
+                for (final v in decoded) {
+                  final id = int.tryParse(v.toString());
+                  if (id != null) userPacoteIds.add(id);
+                }
+              }
+            } catch (_) {}
+          }
+        }
+      }
+
+      // If user has any matching pacote id, allow access
+      for (final id in contentPacotes) {
+        if (userPacoteIds.contains(id)) return true;
+      }
+
+      return false;
+    } catch (_) {
+      return true; // fail-open: if error, allow playback
+    }
   }
 
   @override
@@ -270,210 +399,348 @@ class _VideoFeedScreenState extends State<VideoFeedScreen> with RouteAware {
           ? const Center(child: CircularProgressIndicator())
           : items.isEmpty
               ? const Center(child: Text('Sem conteúdo'))
-              : PageView.builder(
-                  controller: _pageController,
-                  scrollDirection: Axis.vertical,
-                  itemCount: items.length,
-                  onPageChanged: _onPageChanged,
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    final isVideo = item['tipo_conteudo_id'] == 1;
-                    final title = item['titulo'] ?? '';
-                    final description = item['descricao'] ?? '';
+              : Stack(
+                  children: [
+                    PageView.builder(
+                      controller: _pageController,
+                      scrollDirection: Axis.vertical,
+                      itemCount: items.length,
+                      onPageChanged: _onPageChanged,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        final isVideo = item['tipo_conteudo_id'] == 1;
+                        final title = item['titulo'] ?? '';
+                        final description = item['descricao'] ?? '';
 
-                    final isActive = index == currentIndex;
+                        final isActive = index == currentIndex;
 
-                    return GestureDetector(
-                      onTap: () {
-                        if (_controller != null &&
-                            _controller!.value.isInitialized) {
-                          setState(() {
-                            if (_controller!.value.isPlaying)
-                              _controller!.pause();
-                            else
-                              _controller!.play();
-                          });
-                        }
-                      },
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          // Video or audio placeholder
-                          if (isVideo)
-                            isActive &&
-                                    _controller != null &&
-                                    _controller!.value.isInitialized
-                                ? Center(
-                                    child: AspectRatio(
-                                      aspectRatio:
-                                          _controller!.value.aspectRatio,
-                                      child: VideoPlayer(_controller!),
-                                    ),
-                                  )
-                                : Container(color: Colors.black)
-                          else
-                            Container(
-                              color: Colors.black,
-                              child: const Center(
-                                child: Icon(Icons.audiotrack,
-                                    size: 96, color: Colors.white),
-                              ),
-                            ),
+                        final blocked = (item['_blocked'] == true);
 
-                          // Center play/pause overlay
-                          if (isActive &&
-                              _controller != null &&
-                              _controller!.value.isInitialized)
-                            Center(
-                              child: AnimatedOpacity(
-                                opacity:
-                                    _controller!.value.isPlaying ? 0.0 : 1.0,
-                                duration: const Duration(milliseconds: 250),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                      color: Colors.black45,
-                                      borderRadius: BorderRadius.circular(48)),
-                                  padding: const EdgeInsets.all(12),
-                                  child: Icon(
-                                    _controller!.value.isPlaying
-                                        ? Icons.pause
-                                        : Icons.play_arrow,
-                                    size: 48,
-                                    color: Colors.white,
+                        return GestureDetector(
+                          onTap: () {
+                            // If blocked, do nothing (or show a message)
+                            if (blocked) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text(
+                                          'Conteúdo bloqueado — adquira o pacote para aceder.')));
+                              return;
+                            }
+                            if (_controller != null &&
+                                _controller!.value.isInitialized) {
+                              setState(() {
+                                if (_controller!.value.isPlaying)
+                                  _controller!.pause();
+                                else
+                                  _controller!.play();
+                              });
+                            }
+                          },
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              // Video or audio placeholder
+                              if (isVideo)
+                                isActive &&
+                                        _controller != null &&
+                                        _controller!.value.isInitialized
+                                    ? Center(
+                                        child: AspectRatio(
+                                          aspectRatio:
+                                              _controller!.value.aspectRatio,
+                                          child: VideoPlayer(_controller!),
+                                        ),
+                                      )
+                                    : Container(color: Colors.black)
+                              else
+                                Container(
+                                  color: Colors.black,
+                                  child: const Center(
+                                    child: Icon(Icons.audiotrack,
+                                        size: 96, color: Colors.white),
                                   ),
                                 ),
-                              ),
-                            ),
 
-                          // Right side controls (like/share)
-                          Positioned(
-                            right: 12,
-                            bottom: MediaQuery.of(context).padding.bottom + 120,
-                            child: Column(
-                              children: [
-                                LikeButton(),
-                                const SizedBox(height: 12),
-                                IconButton(
-                                  icon: const Icon(Icons.share,
-                                      color: Colors.white),
-                                  onPressed: () {},
+                              // Center play/pause overlay
+                              if (isActive &&
+                                  _controller != null &&
+                                  _controller!.value.isInitialized)
+                                Center(
+                                  child: AnimatedOpacity(
+                                    opacity: _controller!.value.isPlaying
+                                        ? 0.0
+                                        : 1.0,
+                                    duration: const Duration(milliseconds: 250),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                          color: Colors.black45,
+                                          borderRadius:
+                                              BorderRadius.circular(48)),
+                                      padding: const EdgeInsets.all(12),
+                                      child: Icon(
+                                        _controller!.value.isPlaying
+                                            ? Icons.pause
+                                            : Icons.play_arrow,
+                                        size: 48,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ],
-                            ),
-                          ),
 
-                          // (Title/description moved below controls)
+                              // Right side controls (like/share)
+                              Positioned(
+                                right: 12,
+                                bottom:
+                                    MediaQuery.of(context).padding.bottom + 120,
+                                child: Column(
+                                  children: [
+                                    LikeButton(),
+                                    const SizedBox(height: 12),
+                                    IconButton(
+                                      icon: const Icon(Icons.share,
+                                          color: Colors.white),
+                                      onPressed: () {},
+                                    ),
+                                  ],
+                                ),
+                              ),
 
-                          // (Type label moved below controls)
-
-                          // Bottom progress bar and controls
-                          if (isActive &&
-                              _controller != null &&
-                              _controller!.value.isInitialized)
-                            Positioned(
-                              left: 12,
-                              right: 12,
-                              bottom: MediaQuery.of(context).padding.bottom + 8,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // progress slider
-                                  _buildProgressSlider(),
-                                  const SizedBox(height: 8),
-                                  // controls: rewind, play/pause, forward, mute
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                              // If blocked, show a centered lock and list the
+                              // content's pacotes (names) in small text below it.
+                              if (blocked)
+                                Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.replay_10,
-                                            color: Colors.white),
-                                        onPressed: () => _seekRelative(
-                                            const Duration(seconds: -15)),
+                                      Container(
+                                        padding: const EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                            color: Colors.black54,
+                                            shape: BoxShape.circle),
+                                        child: const Icon(Icons.lock_outline,
+                                            color: Colors.white, size: 64),
                                       ),
-                                      IconButton(
-                                        icon: Icon(
-                                            _controller!.value.isPlaying
-                                                ? Icons.pause_circle_filled
-                                                : Icons.play_circle_fill,
-                                            color: Colors.white,
-                                            size: 40),
-                                        onPressed: () {
-                                          setState(() {
-                                            if (_controller!.value.isPlaying)
-                                              _controller!.pause();
-                                            else
-                                              _controller!.play();
-                                          });
-                                        },
+                                      const SizedBox(height: 12),
+                                      // Title (small but visible) — appears above the pacote list
+                                      if ((title ?? '').toString().isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 24.0),
+                                          child: Text(
+                                            title.toString(),
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      const SizedBox(height: 8),
+                                      // Label: Pacotes permitidos
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 24.0),
+                                        child: Text(
+                                          'Pacotes permitidos:',
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600),
+                                        ),
                                       ),
-                                      IconButton(
-                                        icon: const Icon(Icons.forward_10,
-                                            color: Colors.white),
-                                        onPressed: () => _seekRelative(
-                                            const Duration(seconds: 15)),
+                                      const SizedBox(height: 6),
+                                      // Show list of pacote names associated with content
+                                      Builder(builder: (c) {
+                                        final pacotes = <String>[];
+                                        if (item.containsKey('pacotes') &&
+                                            item['pacotes'] is List) {
+                                          for (final p in item['pacotes']) {
+                                            try {
+                                              if (p is Map &&
+                                                  p['designacao'] != null) {
+                                                pacotes.add(
+                                                    p['designacao'].toString());
+                                              } else if (p is Map &&
+                                                  p['designacao'] == null &&
+                                                  p['nome'] != null) {
+                                                pacotes
+                                                    .add(p['nome'].toString());
+                                              }
+                                            } catch (_) {}
+                                          }
+                                        }
+
+                                        if (pacotes.isEmpty) {
+                                          return const SizedBox.shrink();
+                                        }
+
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 24.0),
+                                          child: Text(
+                                            pacotes.join(' • '),
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                                color: Colors.white70,
+                                                fontSize: 12),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        );
+                                      }),
+                                    ],
+                                  ),
+                                ),
+
+                              // (Title/description moved below controls)
+
+                              // (Type label moved below controls)
+
+                              // Bottom progress bar and controls
+                              if (isActive &&
+                                  _controller != null &&
+                                  _controller!.value.isInitialized)
+                                Positioned(
+                                  left: 12,
+                                  right: 12,
+                                  bottom:
+                                      MediaQuery.of(context).padding.bottom + 8,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // progress slider
+                                      _buildProgressSlider(),
+                                      const SizedBox(height: 8),
+                                      // controls: rewind, play/pause, forward, mute
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(Icons.replay_10,
+                                                color: Colors.white),
+                                            onPressed: () => _seekRelative(
+                                                const Duration(seconds: -15)),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(
+                                                _controller!.value.isPlaying
+                                                    ? Icons.pause_circle_filled
+                                                    : Icons.play_circle_fill,
+                                                color: Colors.white,
+                                                size: 40),
+                                            onPressed: () {
+                                              setState(() {
+                                                if (_controller!
+                                                    .value.isPlaying)
+                                                  _controller!.pause();
+                                                else
+                                                  _controller!.play();
+                                              });
+                                            },
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.forward_10,
+                                                color: Colors.white),
+                                            onPressed: () => _seekRelative(
+                                                const Duration(seconds: 15)),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          IconButton(
+                                            icon: Icon(
+                                                _isMuted
+                                                    ? Icons.volume_off
+                                                    : Icons.volume_up,
+                                                color: Colors.white),
+                                            onPressed: () async {
+                                              setState(
+                                                  () => _isMuted = !_isMuted);
+                                              try {
+                                                await _controller?.setVolume(
+                                                    _isMuted ? 0.0 : 1.0);
+                                              } catch (_) {}
+                                            },
+                                          ),
+                                        ],
                                       ),
-                                      const SizedBox(width: 12),
-                                      IconButton(
-                                        icon: Icon(
-                                            _isMuted
-                                                ? Icons.volume_off
-                                                : Icons.volume_up,
-                                            color: Colors.white),
-                                        onPressed: () async {
-                                          setState(() => _isMuted = !_isMuted);
-                                          try {
-                                            await _controller?.setVolume(
-                                                _isMuted ? 0.0 : 1.0);
-                                          } catch (_) {}
-                                        },
+                                      const SizedBox(height: 8),
+                                      // Black info bar: type (left) + title (left)
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                            color: Colors.black45,
+                                            borderRadius:
+                                                BorderRadius.circular(8)),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4),
+                                              decoration: BoxDecoration(
+                                                  color: Colors.black38,
+                                                  borderRadius:
+                                                      BorderRadius.circular(8)),
+                                              child: Text(
+                                                  isVideo ? 'VÍDEO' : 'ÁUDIO',
+                                                  style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 12)),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(title,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 16,
+                                                      fontWeight:
+                                                          FontWeight.bold)),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
-                                  // Black info bar: type (left) + title (left)
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 8),
-                                    decoration: BoxDecoration(
-                                        color: Colors.black45,
-                                        borderRadius: BorderRadius.circular(8)),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                              color: Colors.black38,
-                                              borderRadius:
-                                                  BorderRadius.circular(8)),
-                                          child: Text(
-                                              isVideo ? 'VÍDEO' : 'ÁUDIO',
-                                              style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 12)),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(title,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.bold)),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+
+                    // bottom loader when fetching next page
+                    if (_isLoadingMore)
+                      Positioned(
+                        bottom: MediaQuery.of(context).padding.bottom + 24,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.black45,
+                              borderRadius: BorderRadius.circular(24),
                             ),
-                        ],
+                            child: const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        ),
                       ),
-                    );
-                  },
+                  ],
                 ),
     );
   }

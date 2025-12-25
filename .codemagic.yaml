@@ -34,7 +34,7 @@ workflows:
     name: Build iOS IPA (Flutter 3.38.5)
     environment:
       flutter: "3.38.5"
-      xcode: "14.1"
+      xcode: "26.1"
     scripts:
       - name: Flutter version
         script: flutter --version

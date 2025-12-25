@@ -217,6 +217,33 @@ class _SignFormState extends State<SignForm> {
         final user =
             (body is Map && body.containsKey('user')) ? body['user'] : null;
 
+        // Enforce tipo_user_id rule on the client: this mobile app only
+        // accepts users with tipo_user_id == 3. If the returned user does
+        // not match, refuse to persist the token and show a message.
+        int tipo = -1;
+        try {
+          if (user is Map) {
+            if (user['tipo_user_id'] != null) {
+              tipo = int.tryParse(user['tipo_user_id'].toString()) ?? -1;
+            } else if (user['tipo_user'] != null && user['tipo_user'] is Map) {
+              final tu = Map<String, dynamic>.from(user['tipo_user']);
+              if (tu['id'] != null) tipo = int.tryParse(tu['id'].toString()) ?? -1;
+              else if (tu['tipo_user_id'] != null) tipo = int.tryParse(tu['tipo_user_id'].toString()) ?? -1;
+            } else if (user['tipo_user'] is int) {
+              tipo = user['tipo_user'] as int;
+            }
+          }
+        } catch (_) {
+          tipo = -1;
+        }
+
+        if (tipo != 3) {
+          scaffold.showSnackBar(const SnackBar(content: Text('Acesso não permitido neste app móvel.')));
+          // Do not persist token or user — return early.
+          if (mounted) setState(() => isLoading = false);
+          return;
+        }
+
         // Update centralized AuthProvider (and persist inside it)
         try {
           final auth = Provider.of<AuthProvider>(context, listen: false);

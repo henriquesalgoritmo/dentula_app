@@ -119,14 +119,29 @@ class _PdfViewerTestScreenState extends State<PdfViewerTestScreen> {
   }
 
   Future<void> _downloadDocument(String path) async {
-    final url = _buildDownloadUrl(path);
+    var url = _buildDownloadUrl(path);
     if (url.isEmpty) return;
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Não foi possível iniciar download')));
+    // Ensure the URL is absolute (has a scheme). If not, prefix with API base.
+    final parsed = Uri.tryParse(url);
+    if (parsed == null || (parsed.scheme == null || parsed.scheme.isEmpty)) {
+      final base = getApiBaseUrl();
+      url = base + (url.startsWith('/') ? url.substring(1) : url);
+    }
+
+    try {
+      final uri = Uri.parse(url);
+      // Try to open with external application (browser). If it fails, show a message.
+      final launched =
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Não foi possível abrir o link de download')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao abrir link de download: $e')));
+      }
     }
   }
 
